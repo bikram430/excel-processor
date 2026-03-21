@@ -2,8 +2,8 @@ import * as XLSX from 'xlsx';
 import { ExcelRow, LineStats, ProcessedData } from '@/types';
 
 /**
- * The exact (uppercase) production line names that are allowed.
- * Rows with any other value in the "line" column are discarded.
+ * The exact (uppercase) production line names that are accepted.
+ * Anything else is discarded silently.
  */
 const VALID_LINES = new Set<string>([
   'BLENDTECH CQC 1',
@@ -18,23 +18,26 @@ const VALID_LINES = new Set<string>([
 ]);
 
 /**
- * Case-insensitive search for a header column name.
- * Returns -1 when not found.
+ * Safely convert any cell value to a trimmed string.
+ * Returns '' for null / undefined / sparse-array holes.
  */
-function findColIndex(headers: string[], target: string): number {
-  return headers.findIndex(
-    (h) => h.trim().toLowerCase() === target.toLowerCase()
-  );
+function cellStr(val: unknown): string {
+  return val != null ? String(val).trim() : '';
 }
 
 /**
- * Parse an Excel Buffer (from an uploaded .xlsx / .xls file) and return:
- *  - filteredData  : rows that match a valid production line
- *  - totalsByLine  : quantity totals + entry count per line
- *  - overallTotal  : sum of all quantities in filteredData
- *
- * Throws a descriptive Error on validation failures so the API route
- * can surface a meaningful message to the UI.
+ * Case-insensitive column search.
+ * Guards against undefined (sparse array holes reach findIndex even though
+ * they were skipped by the earlier .map() call).
+ */
+function findColIndex(headers: string[], target: string): number {
+  const t = target.toLowerCase();
+  return headers.findIndex((h) => h != null && h.toLowerCase() === t);
+}
+
+/**
+ * Parse an Excel Buffer and return filtered + aggregated production data.
+ * All processing is in-memory; nothing is persisted.
  */
 export function parseExcel(buffer: Buffer): ProcessedData {
   // ── 1. Read workbook ───────────────────────────────────────────────────────
@@ -46,58 +49,65 @@ export function parseExcel(buffer: Buffer): ProcessedData {
 
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-  // ── 2. Convert to a 2-D array (header: 1 keeps row 0 as the header row) ──
+  // ── 2. Convert sheet → 2-D array ──────────────────────────────────────────
   const raw: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-  if (raw.length === 0) {
+  if (!raw.length) {
     throw new Error('The Excel file is empty.');
   }
 
-  // ── 3. Locate required columns ─────────────────────────────────────────────
-  const headers: string[] = (raw[0] as unknown[]).map((h) => String(h ?? ''));
+  // ── 3. Extract headers ─────────────────────────────────────────────────────
+  // IMPORTANT: use Array.from() so that sparse holes in the xlsx output become
+  // explicit undefined entries — otherwise .map() skips them but .findIndex()
+  // later visits them and calls .trim() on undefined → crash.
+  const rawHeaderRow = raw[0] as unknown[];
+  const headers: string[] = Array.from(
+    { length: rawHeaderRow.length },
+    (_, i) => cellStr(rawHeaderRow[i])
+  );
 
-  const lineIdx = findColIndex(headers, 'line');
-  const productIdx = findColIndex(headers, 'product');
+  // ── 4. Locate required columns ─────────────────────────────────────────────
+  const lineIdx     = findColIndex(headers, 'line');
+  const productIdx  = findColIndex(headers, 'product');
   const quantityIdx = findColIndex(headers, 'quantity');
 
   const missing: string[] = [];
-  if (lineIdx === -1) missing.push('"line"');
-  if (productIdx === -1) missing.push('"product"');
+  if (lineIdx     === -1) missing.push('"line"');
+  if (productIdx  === -1) missing.push('"product"');
   if (quantityIdx === -1) missing.push('"quantity"');
 
-  if (missing.length > 0) {
+  if (missing.length) {
     throw new Error(
       `Missing required column(s): ${missing.join(', ')}. ` +
-        `Columns found: ${headers.map((h) => `"${h}"`).join(', ')}`
+      `Columns found: ${headers.map((h) => `"${h}"`).join(', ')}`
     );
   }
 
-  // ── 4. Iterate data rows (skip header at index 0) ─────────────────────────
+  // ── 5. Process data rows ───────────────────────────────────────────────────
   const filteredData: ExcelRow[] = [];
 
   for (let i = 1; i < raw.length; i++) {
     const row = raw[i] as unknown[];
-    if (!row || row.length === 0) continue;
+    if (!row?.length) continue;
 
-    // Normalise: trim + uppercase for exact comparison
-    const rawLine = String(row[lineIdx] ?? '').trim().toUpperCase();
-    const product = String(row[productIdx] ?? '').trim();
-    const rawQty = row[quantityIdx];
+    const rawLine = cellStr(row[lineIdx]).toUpperCase();
+    const product = cellStr(row[productIdx]);
+    const rawQty  = row[quantityIdx];
 
-    // Skip rows that are missing a line or product value
+    // Skip blank rows
     if (!rawLine || !product) continue;
 
-    // STRICT filter – must exactly match one of the 9 valid lines
+    // STRICT filter — exact match against the 9 valid lines
     if (!VALID_LINES.has(rawLine)) continue;
 
-    // Parse quantity; strip thousands separators (e.g. "1,250")
+    // Strip thousands separators then parse
     const quantity = parseFloat(String(rawQty ?? '0').replace(/,/g, ''));
     if (isNaN(quantity)) continue;
 
     filteredData.push({ line: rawLine, product, quantity });
   }
 
-  // ── 5. Aggregate totals ────────────────────────────────────────────────────
+  // ── 6. Aggregate ──────────────────────────────────────────────────────────
   const totalsByLine: Record<string, LineStats> = {};
   let overallTotal = 0;
 
