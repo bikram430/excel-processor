@@ -41,8 +41,8 @@ async function downloadSummaryExcel(data: ExcelRow[]) {
   const wb  = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Summary');
 
-  const buf  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
-  const blob = new Blob([buf], {
+  const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
+  const blob = new Blob([Uint8Array.from(raw)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);

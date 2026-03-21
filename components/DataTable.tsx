@@ -49,9 +49,9 @@ async function downloadAsExcel(rows: ExcelRow[], filename: string, includeLineCo
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Production Data');
 
-  // Write to Uint8Array (browser-safe — no fs involved)
-  const buf  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
-  const blob = new Blob([buf], {
+  // Write to a number[] then convert to Uint8Array (browser-safe, no fs involved)
+  const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
+  const blob = new Blob([Uint8Array.from(raw)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url  = URL.createObjectURL(blob);
