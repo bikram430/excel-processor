@@ -73,7 +73,7 @@ function DownloadIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function DataTable({ data }: DataTableProps) {
+export function DataTable({ data: rawData }: DataTableProps) {
   // All sections start expanded; clicking the header collapses them
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -83,6 +83,9 @@ export function DataTable({ data }: DataTableProps) {
       next.has(line) ? next.delete(line) : next.add(line);
       return next;
     });
+
+  // Hide rows where quantity is 0 — same behaviour as the Summary view
+  const data = rawData.filter((r) => r.quantity > 0);
 
   if (data.length === 0) {
     return (
