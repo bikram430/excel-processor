@@ -2,12 +2,9 @@ import * as XLSX from 'xlsx';
 import { ExcelRow, LineStats, ProcessedData } from '@/types';
 
 /**
- * Valid production line names — matched after trim + toUpperCase().
- *
- * Confirmed from the actual Excel file:
- *  - "BLENDTECH" is its own line (column A literally says "BLENDTECH")
- *  - "CQC 1"     is its own separate line
- *  Both were previously incorrectly merged as "BLENDTECH CQC 1".
+ * Valid production line names.
+ * Matched after .trim().toUpperCase() on the "Line" column value.
+ * BLENDTECH and CQC 1 are separate lines as confirmed by the Excel file.
  */
 const VALID_LINES = new Set<string>([
   'BLENDTECH',
@@ -22,15 +19,14 @@ const VALID_LINES = new Set<string>([
   'WOK',
 ]);
 
-/** Safely coerce any cell value to a trimmed string. */
+/** Coerce any cell value to a trimmed string; returns '' for null/undefined/holes. */
 function cellStr(val: unknown): string {
   return val != null ? String(val).trim() : '';
 }
 
 /**
- * Find the first column index whose header matches ANY of the supplied names
- * (case-insensitive). Returns -1 when not found.
- * Accepts multiple aliases so we can handle e.g. "Qty" OR "Quantity".
+ * Case-insensitive column search that accepts multiple aliases.
+ * Also guards against sparse-array holes (undefined values) reaching .toLowerCase().
  */
 function findColIndex(headers: string[], ...aliases: string[]): number {
   const targets = new Set(aliases.map((a) => a.toLowerCase()));
@@ -39,15 +35,8 @@ function findColIndex(headers: string[], ...aliases: string[]): number {
 
 /**
  * Scan the first 20 rows to find the actual header row.
- *
- * The Excel file has metadata in rows 1-3:
- *   Row 1 → "Document Version: …", "Cooking Date", date
- *   Row 2 → "Issue Date: …"
- *   Row 3 → (empty)
- *   Row 4 → real headers: Line | Product | Item Code | Qty | …
- *
- * By searching for the row that contains both "line" and "product" we handle
- * this layout without hardcoding a row number.
+ * The real Excel file has metadata rows 1-3 before the headers appear on row 4.
+ * We look for the row that contains BOTH "line" and "product".
  */
 function findHeaderRowIndex(raw: unknown[][]): number {
   for (let i = 0; i < Math.min(raw.length, 20); i++) {
@@ -59,16 +48,11 @@ function findHeaderRowIndex(raw: unknown[][]): number {
       (_, j) => cellStr(row[j]).toLowerCase()
     );
 
-    // Must contain both "line" and "product" to be the header row
     if (cells.includes('line') && cells.includes('product')) return i;
   }
   return -1;
 }
 
-/**
- * Parse an Excel Buffer and return filtered + aggregated production data.
- * All processing is in-memory — nothing is persisted between requests.
- */
 export function parseExcel(buffer: Buffer): ProcessedData {
   // ── 1. Read workbook ───────────────────────────────────────────────────────
   const workbook = XLSX.read(buffer, { type: 'buffer' });
@@ -78,44 +62,46 @@ export function parseExcel(buffer: Buffer): ProcessedData {
   }
 
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-
-  // ── 2. Convert sheet → 2-D array (every row, every cell) ──────────────────
   const raw: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
   if (!raw.length) {
     throw new Error('The Excel file is empty.');
   }
 
-  // ── 3. Locate the real header row ──────────────────────────────────────────
-  // The file starts with metadata rows; headers are on Excel row 4 (index 3).
+  // ── 2. Locate real header row (skips metadata rows at the top) ─────────────
   const headerRowIdx = findHeaderRowIndex(raw);
-
   if (headerRowIdx === -1) {
     throw new Error(
-      'Could not find a header row with "Line" and "Product" columns. ' +
-      'Make sure the Excel file has not been restructured.'
+      'Could not find a header row containing "Line" and "Product". ' +
+      'Please ensure the Excel file has not been restructured.'
     );
   }
 
-  // ── 4. Build a dense, trimmed headers array ────────────────────────────────
-  // Array.from() converts sparse xlsx arrays to dense so no holes reach
-  // findIndex() as undefined (which would crash on .toLowerCase()).
+  // ── 3. Build a dense, trimmed headers array ────────────────────────────────
+  // Array.from() converts sparse xlsx arrays to dense so .findIndex() never
+  // receives a hole (which would pass `undefined` to h.toLowerCase() → crash).
   const rawHeaderRow = raw[headerRowIdx] as unknown[];
   const headers: string[] = Array.from(
     { length: rawHeaderRow.length },
     (_, i) => cellStr(rawHeaderRow[i])
   );
 
-  // ── 5. Find required column indices ───────────────────────────────────────
-  const lineIdx     = findColIndex(headers, 'line');
-  const productIdx  = findColIndex(headers, 'product');
-  // The file uses "Qty" — also accept "Quantity" for robustness
-  const quantityIdx = findColIndex(headers, 'qty', 'quantity');
+  // ── 4. Map required + optional column indices ──────────────────────────────
+  const lineIdx         = findColIndex(headers, 'line');
+  const productIdx      = findColIndex(headers, 'product');
+  const quantityIdx     = findColIndex(headers, 'qty', 'quantity');        // file uses "Qty"
+  const itemCodeIdx     = findColIndex(headers, 'item code', 'itemcode', 'item_code');
+  const uomIdx          = findColIndex(headers, 'uom', 'unit');
+  const typeIdx         = findColIndex(headers, 'type');
+  const planningGrpIdx  = findColIndex(headers, 'planning group', 'planning grp', 'planninggroup');
+  const sequenceIdx     = findColIndex(headers, 'sequence', 'seq');
+  const commentsIdx     = findColIndex(headers, 'comments', 'comment');
 
+  // Only line, product and qty are mandatory
   const missing: string[] = [];
   if (lineIdx     === -1) missing.push('"Line"');
   if (productIdx  === -1) missing.push('"Product"');
-  if (quantityIdx === -1) missing.push('"Qty" or "Quantity"');
+  if (quantityIdx === -1) missing.push('"Qty" / "Quantity"');
 
   if (missing.length) {
     throw new Error(
@@ -124,7 +110,7 @@ export function parseExcel(buffer: Buffer): ProcessedData {
     );
   }
 
-  // ── 6. Process every data row after the header ─────────────────────────────
+  // ── 5. Process every data row that follows the header ──────────────────────
   const filteredData: ExcelRow[] = [];
 
   for (let i = headerRowIdx + 1; i < raw.length; i++) {
@@ -135,20 +121,28 @@ export function parseExcel(buffer: Buffer): ProcessedData {
     const product = cellStr(row[productIdx]);
     const rawQty  = row[quantityIdx];
 
-    // Skip blank or partially-empty rows
     if (!rawLine || !product) continue;
 
     // STRICT filter — must exactly match one of the 10 valid lines
     if (!VALID_LINES.has(rawLine)) continue;
 
-    // Strip thousands separators then parse to number
     const quantity = parseFloat(String(rawQty ?? '0').replace(/,/g, ''));
     if (isNaN(quantity)) continue;
 
-    filteredData.push({ line: rawLine, product, quantity });
+    filteredData.push({
+      line:         rawLine,
+      product,
+      quantity,
+      itemCode:     itemCodeIdx    !== -1 ? cellStr(row[itemCodeIdx])    : '',
+      uom:          uomIdx         !== -1 ? cellStr(row[uomIdx])         : '',
+      type:         typeIdx        !== -1 ? cellStr(row[typeIdx])        : '',
+      planningGroup: planningGrpIdx !== -1 ? cellStr(row[planningGrpIdx]) : '',
+      sequence:     sequenceIdx    !== -1 ? cellStr(row[sequenceIdx])    : '',
+      comments:     commentsIdx    !== -1 ? cellStr(row[commentsIdx])    : '',
+    });
   }
 
-  // ── 7. Aggregate totals ────────────────────────────────────────────────────
+  // ── 6. Aggregate totals ────────────────────────────────────────────────────
   const totalsByLine: Record<string, LineStats> = {};
   let overallTotal = 0;
 

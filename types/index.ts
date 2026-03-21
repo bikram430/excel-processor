@@ -1,8 +1,14 @@
-/** A single row of filtered production data */
+/** One filtered row — mirrors the columns visible in the Excel file */
 export interface ExcelRow {
   line: string;
   product: string;
-  quantity: number;
+  quantity: number;      // from "Qty" column
+  itemCode: string;
+  uom: string;
+  type: string;
+  planningGroup: string;
+  sequence: string;
+  comments: string;
 }
 
 /** Per-line aggregated statistics */
