@@ -22,7 +22,8 @@ const Chart = dynamic(
 );
 
 const VALID_LINES = [
-  'BLENDTECH CQC 1',
+  'BLENDTECH',
+  'CQC 1',
   'CQC 2',
   'DD OVEN',
   'KETTLE 1 SOUP',
