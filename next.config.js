@@ -1,7 +1,6 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  // xlsx is a server-only package; prevent it being bundled for the client
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // xlsx is a server-only package; prevent it from being bundled for the client
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -16,4 +15,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
