@@ -1,25 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import dynamic from 'next/dynamic';
-
 import { FileUpload } from '@/components/FileUpload';
 import { DataTable }  from '@/components/DataTable';
 import { Summary }    from '@/components/Summary';
 import { ApiResponse, ProcessedData } from '@/types';
-
-// Chart uses window APIs — load only on the client side
-const Chart = dynamic(
-  () => import('@/components/Chart').then((m) => m.Chart),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
-        Loading chart…
-      </div>
-    ),
-  }
-);
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -34,15 +19,12 @@ const VALID_LINES = [
   'WOK',
 ];
 
-type AnalyticsTab = 'summary' | 'chart';
-
 export default function HomePage() {
   const [data, setData]               = useState<ProcessedData | null>(null);
   const [isLoading, setLoading]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [warning, setWarning]         = useState<string | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>('summary');
-  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(true);
 
   function handleData(response: ApiResponse) {
     if (response.success && response.data) {
@@ -59,7 +41,7 @@ export default function HomePage() {
     setData(null);
     setError(null);
     setWarning(null);
-    setShowAnalytics(false);
+    setShowAnalytics(true);
   }
 
   return (
@@ -239,40 +221,14 @@ export default function HomePage() {
                 </svg>
               </button>
 
-              {/* Analytics content */}
+              {/* Summary content */}
               {showAnalytics && (
-                <>
-                  {/* Tab switcher */}
-                  <div className="border-t border-b border-gray-200 flex">
-                    {(['summary', 'chart'] as AnalyticsTab[]).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setAnalyticsTab(tab)}
-                        className={`
-                          px-6 py-3 text-sm font-medium capitalize border-b-2 -mb-px transition-colors
-                          ${analyticsTab === tab
-                            ? 'border-blue-600 text-blue-600 bg-blue-50/30'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                          }
-                        `}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="p-6">
-                    {analyticsTab === 'summary' && (
-                      <Summary
-                        totalsByLine={data.totalsByLine}
-                        overallTotal={data.overallTotal}
-                      />
-                    )}
-                    {analyticsTab === 'chart' && (
-                      <Chart totalsByLine={data.totalsByLine} />
-                    )}
-                  </div>
-                </>
+                <div className="border-t border-gray-200 p-6">
+                  <Summary
+                    filteredData={data.filteredData}
+                    overallTotal={data.overallTotal}
+                  />
+                </div>
               )}
             </div>
 
