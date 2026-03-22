@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -133,6 +133,16 @@ function parseBatchSizes(
 
 function allergenKey(item: BoardItem): string {
   return item.allergens[0] ?? 'ALLERGEN_FREE';
+}
+
+/** Sort items: timed items first (earliest → latest), untimed at the bottom */
+function sortByTime(items: BoardItem[]): BoardItem[] {
+  return [...items].sort((a, b) => {
+    if (!a.time && !b.time) return 0;
+    if (!a.time) return 1;
+    if (!b.time) return -1;
+    return a.time.localeCompare(b.time);
+  });
 }
 
 // ── Excel downloads ────────────────────────────────────────────────────────
@@ -354,6 +364,7 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
+      data-row-pos={position}
       {...attributes}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
@@ -509,6 +520,22 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [blockedLine, setBlockedLine] = useState<string | null>(null);
   const snapshot     = useRef<Record<string, BoardItem[]> | null>(null);
   const lastOverRef  = useRef<string | null>(null);
+  const boardRef     = useRef<HTMLDivElement>(null);
+
+  // Equalise card heights across columns so cards at the same position
+  // (row 1, row 2, …) are the same height regardless of batch count.
+  useLayoutEffect(() => {
+    if (activeId || !boardRef.current) return;
+    const board = boardRef.current;
+    const cards = board.querySelectorAll<HTMLElement>('[data-row-pos]');
+    cards.forEach(el => { el.style.minHeight = ''; });
+    const byPos: Record<string, HTMLElement[]> = {};
+    cards.forEach(el => { (byPos[el.dataset.rowPos!] ??= []).push(el); });
+    for (const group of Object.values(byPos)) {
+      const maxH = Math.max(...group.map(el => el.offsetHeight));
+      group.forEach(el => { el.style.minHeight = `${maxH}px`; });
+    }
+  }, [allItems, activeId]);
 
   /*
    * SENSORS:
@@ -565,7 +592,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       const next = { ...prev };
       for (const line of Object.keys(next)) {
         if (next[line].some(i => i.id === id)) {
-          next[line] = next[line].map(i => i.id === id ? { ...i, time } : i);
+          next[line] = sortByTime(next[line].map(i => i.id === id ? { ...i, time } : i));
           break;
         }
       }
@@ -712,7 +739,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       </div>
 
       {/* ── Board columns ── */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+      <div ref={boardRef} className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
         <div className="flex divide-x divide-gray-200">
           {activeLines.map(line => {
             const items    = allItems[line] ?? [];
