@@ -158,6 +158,7 @@ function ProductCard({
   onMoveTo,
   isHolding = false,
   isDragging = false,
+  dragHandleProps = {},
 }: {
   item: BoardItem;
   position: number;
@@ -167,6 +168,7 @@ function ProductCard({
   onMoveTo?: (id: string, targetLine: string) => void;
   isHolding?: boolean;
   isDragging?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement> & { style?: React.CSSProperties };
 }) {
   const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
   const otherLines = activeLines.filter(l => l !== item.line);
@@ -174,64 +176,67 @@ function ProductCard({
   const aColours   = ALLERGEN_COLOURS[aKey] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
 
   return (
-    <div className={`bg-white rounded-xl overflow-hidden select-none transition-all duration-150 ${
+    <div className={`bg-white rounded-xl overflow-hidden transition-all duration-150 ${
       isDragging ? 'opacity-30 scale-95' :
       isHolding  ? 'shadow-2xl scale-[1.03] ring-2 ring-indigo-400 border-indigo-200 border' :
                    'shadow-sm border border-gray-200'
     }`}>
 
-      {/* ── Drag pill indicator (always visible, shows draggability) ── */}
-      <div className={`flex items-center justify-center pt-2 pb-1 transition-colors ${
-        isHolding ? 'bg-indigo-50' : 'bg-gray-50'
-      }`}>
-        <div className={`w-9 h-1.5 rounded-full transition-colors ${
-          isHolding ? 'bg-indigo-400' : 'bg-gray-300'
-        }`} />
-        {isHolding && (
-          <span className="absolute text-[8px] text-indigo-500 font-bold tracking-widest mt-5">
-            HOLD &amp; DRAG
-          </span>
-        )}
-      </div>
-
-      {/* ── Position + product info ── */}
-      <div className="flex items-start px-3 pt-1 pb-2 gap-2">
-
-        {/* Position badge */}
-        <div className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center
-                        rounded-full bg-gray-100 text-[9px] font-bold text-gray-400">
-          {position || '·'}
+      {/*
+       * ── DRAG HANDLE (hold here to drag) ──────────────────────────────
+       * Only this section has touch-action:none and the dnd listeners.
+       * Touching anywhere below this area scrolls the page normally.
+       */}
+      <div
+        {...dragHandleProps}
+        className={`cursor-grab active:cursor-grabbing select-none ${dragHandleProps.className ?? ''}`}
+      >
+        {/* Drag pill */}
+        <div className={`flex items-center justify-center pt-2 pb-1 transition-colors ${
+          isHolding ? 'bg-indigo-50' : 'bg-gray-50'
+        }`}>
+          <div className={`w-9 h-1.5 rounded-full transition-colors ${
+            isHolding ? 'bg-indigo-400' : 'bg-gray-300'
+          }`} />
+          {isHolding && (
+            <span className="absolute text-[8px] text-indigo-500 font-bold tracking-widest mt-5">
+              HOLD &amp; DRAG
+            </span>
+          )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          {/* Product name */}
-          <p className="font-bold text-gray-900 text-sm leading-snug" title={item.product}>
-            {item.product}
-          </p>
-
-          {/* Total */}
-          <p className="text-[11px] text-gray-500 font-mono mt-0.5">
-            <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
-          </p>
-
-          {/* ── Batch sizes (*N notation) ── */}
-          <div className="mt-2 space-y-1 bg-indigo-50 rounded-lg px-2 py-1.5">
-            {batchSizes.map((b, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-indigo-400 font-mono w-5 flex-shrink-0">
-                  *{i + 1}
-                </span>
-                <span className="text-[12px] font-mono font-bold text-indigo-700 tabular-nums">
-                  {b.kg.toLocaleString()} kg
-                </span>
-              </div>
-            ))}
+        {/* Position badge + product name + batch sizes */}
+        <div className="flex items-start px-3 pt-1 pb-2 gap-2">
+          <div className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center
+                          rounded-full bg-gray-100 text-[9px] font-bold text-gray-400">
+            {position || '·'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-900 text-sm leading-snug" title={item.product}>
+              {item.product}
+            </p>
+            <p className="text-[11px] text-gray-500 font-mono mt-0.5">
+              <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
+            </p>
+            <div className="mt-2 space-y-1 bg-indigo-50 rounded-lg px-2 py-1.5">
+              {batchSizes.map((b, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-indigo-400 font-mono w-5 flex-shrink-0">
+                    *{i + 1}
+                  </span>
+                  <span className="text-[12px] font-mono font-bold text-indigo-700 tabular-nums">
+                    {b.kg.toLocaleString()} kg
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
+      {/* ── END DRAG HANDLE ── */}
 
-      {/* ── Allergen badge + selector ── */}
-      <div className="px-3 pb-2" onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
+      {/* ── Allergen badge + selector (scrollable, not part of drag handle) ── */}
+      <div className="px-3 pb-2">
         <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border mb-1 ${aColours.badge}`}>
           {ALLERGEN_OPTIONS.find(o => o.value === aKey)?.label ?? aKey}
         </span>
@@ -251,7 +256,7 @@ function ProductCard({
 
       {/* ── Start-time input ── */}
       {onTimeChange && (
-        <div className="px-3 pb-2 flex items-center gap-2" onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
+        <div className="px-3 pb-2 flex items-center gap-2">
           <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
           <input
             type="time"
@@ -265,10 +270,7 @@ function ProductCard({
 
       {/* ── Move-to buttons ── */}
       {onMoveTo && otherLines.length > 0 && (
-        <div
-          className="px-3 pb-3 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2"
-          onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}
-        >
+        <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2">
           <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">Move→</span>
           {otherLines.map(targetLine => {
             const compat = isCompatible(item, targetLine);
@@ -295,7 +297,7 @@ function ProductCard({
   );
 }
 
-// ── Sortable card — holds drag logic, whole card is the drag target ─────────
+// ── Sortable card — drag handle is the name/batch area only ─────────────────
 function SortableCard({
   item,
   position,
@@ -322,24 +324,28 @@ function SortableCard({
     isDragging,
   } = useSortable({ id: item.id });
 
+  /*
+   * dragHandleProps is applied ONLY to the top section of the card
+   * (pill + product name + batch sizes). The bottom section (allergen,
+   * time, move-to) has no listeners, so touch there scrolls normally.
+   *
+   * touch-action:none prevents the browser claiming the touch for scroll
+   * while the 250ms hold is counting down inside TouchSensor.
+   */
+  const dragHandleProps = {
+    ...listeners,
+    onPointerDown:  () => setIsHolding(true),
+    onPointerUp:    () => setIsHolding(false),
+    onPointerCancel:() => setIsHolding(false),
+    onPointerLeave: () => setIsHolding(false),
+    style: { touchAction: 'none', userSelect: 'none' } as React.CSSProperties,
+  };
+
   return (
-    /*
-     * The entire card is the drag target.
-     * - {...listeners} captures pointer/touch events for dnd-kit.
-     * - onPointerDown/Up tracks "hold" state for visual feedback.
-     * - Interactive children (select, input, buttons) call
-     *   e.stopPropagation() on pointerDown to prevent drag interference.
-     */
     <div
       ref={setNodeRef}
       {...attributes}
-      {...listeners}
-      style={{ transform: CSS.Transform.toString(transform), transition, touchAction: 'none', userSelect: 'none' }}
-      onPointerDown={() => setIsHolding(true)}
-      onPointerUp={() => setIsHolding(false)}
-      onPointerCancel={() => setIsHolding(false)}
-      onPointerLeave={() => setIsHolding(false)}
-      className="cursor-grab active:cursor-grabbing"
+      style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <ProductCard
         item={item}
@@ -348,6 +354,7 @@ function SortableCard({
         onAllergenChange={onAllergenChange}
         activeLines={activeLines}
         onMoveTo={onMoveTo}
+        dragHandleProps={dragHandleProps}
         isHolding={isHolding && !isDragging}
         isDragging={isDragging}
       />
