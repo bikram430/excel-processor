@@ -19,10 +19,6 @@ function groupByLine(data: ExcelRow[]): Map<string, ExcelRow[]> {
   return map;
 }
 
-function safeFilename(line: string): string {
-  return line.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-}
-
 /**
  * Build an Excel workbook in-memory and trigger a browser download.
  * Uses xlsx dynamically to avoid bundling issues; type: 'array' avoids
@@ -177,22 +173,6 @@ export function DataTable({ data: rawData }: DataTableProps) {
                 </span>
               </button>
 
-              {/* Per-line download */}
-              <button
-                onClick={() =>
-                  downloadAsExcel(
-                    rows,
-                    `${safeFilename(line)}.xlsx`,
-                    false
-                  )
-                }
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
-                           font-semibold text-green-700 bg-green-50 border border-green-200
-                           hover:bg-green-100 active:scale-95 transition-all flex-shrink-0"
-              >
-                <DownloadIcon className="w-3.5 h-3.5" />
-                Download .xlsx
-              </button>
             </div>
 
             {/* Expanded content */}
