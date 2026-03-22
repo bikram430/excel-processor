@@ -601,13 +601,22 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
   function handleDragOver({ active, over }: DragOverEvent) {
     if (!over || !activeId) return;
-    const activeIdStr      = String(active.id);
-    const overId           = String(over.id);
+    const activeIdStr = String(active.id);
+    const overId      = String(over.id);
+
+    // Resolve the container the pointer is over.
+    // IMPORTANT: only accept real board lines — never fall back to an item ID.
+    // Falling back to overId (an item ID) creates bogus keys in allItems and
+    // corrupts the dnd-kit registry, causing a crash.
+    const overContainer = BOARD_LINES.includes(overId)
+      ? overId
+      : Object.keys(allItems).find(k => allItems[k].some(i => i.id === overId));
+    if (!overContainer) return;
+
     const currentContainer = findContainer(activeIdStr, allItems);
-    const overContainer    = findContainer(overId, allItems) ?? overId;
     setOverLine(overContainer);
 
-    if (!currentContainer || !overContainer || currentContainer === overContainer) {
+    if (!currentContainer || currentContainer === overContainer) {
       setBlockedLine(null);
       lastOverRef.current = overContainer;
       return;
@@ -625,14 +634,19 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     setBlockedLine(null);
 
     setAllItems(prev => {
-      const src  = [...prev[currentContainer]];
-      const dest = [...(prev[overContainer] ?? [])];
+      // Re-derive source container from prev (freshest state) to avoid
+      // stale-closure mismatches when multiple drag events fire per render.
+      const freshSrc = Object.keys(prev).find(k => prev[k].some(i => i.id === activeIdStr));
+      if (!freshSrc || !(overContainer in prev)) return prev;
+
+      const src  = [...prev[freshSrc]];
+      const dest = [...prev[overContainer]];
       const idx  = src.findIndex(i => i.id === activeIdStr);
       if (idx === -1) return prev;
       const [item] = src.splice(idx, 1);
       const overIdx = dest.findIndex(i => i.id === overId);
       overIdx >= 0 ? dest.splice(overIdx, 0, item) : dest.push(item);
-      return { ...prev, [currentContainer]: src, [overContainer]: dest };
+      return { ...prev, [freshSrc]: src, [overContainer]: dest };
     });
   }
 
@@ -641,19 +655,24 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     if (!over) {
       if (snapshot.current) setAllItems(snapshot.current);
     } else {
-      const overId           = String(over.id);
+      const overId = String(over.id);
+      const overContainer = BOARD_LINES.includes(overId)
+        ? overId
+        : Object.keys(allItems).find(k => allItems[k].some(i => i.id === overId));
       const currentContainer = findContainer(activeIdStr, allItems);
-      const overContainer    = findContainer(overId, allItems) ?? overId;
 
       if (blockedLine) {
         if (snapshot.current) setAllItems(snapshot.current);
       } else if (currentContainer && overContainer && currentContainer === overContainer) {
         setAllItems(prev => {
-          const items  = prev[currentContainer];
+          // Use freshest state — item may have moved during drag events.
+          const freshContainer = Object.keys(prev).find(k => prev[k].some(i => i.id === activeIdStr));
+          if (!freshContainer) return prev;
+          const items  = prev[freshContainer];
           const oldIdx = items.findIndex(i => i.id === activeIdStr);
           const newIdx = items.findIndex(i => i.id === overId);
           if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
-          return { ...prev, [currentContainer]: arrayMove(items, oldIdx, newIdx) };
+          return { ...prev, [freshContainer]: arrayMove(items, oldIdx, newIdx) };
         });
       }
     }
