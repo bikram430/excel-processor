@@ -54,15 +54,18 @@ async function downloadAsExcel(rows: ExcelRow[], filename: string, includeLineCo
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Production Data');
 
-  // Write to a number[] then convert to Uint8Array (browser-safe, no fs involved)
   const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
-  const blob = new Blob([Uint8Array.from(raw)], {
+  const blob = new Blob([new Uint8Array(raw)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ── Icon ──────────────────────────────────────────────────────────────────────
@@ -79,9 +82,16 @@ function DownloadIcon({ className = 'w-4 h-4' }: { className?: string }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function DataTable({ data: rawData }: DataTableProps) {
-  // All sections start expanded; clicking the header collapses them
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const hasBatches = rawData.some((r) => r.batches !== undefined);
+
+  // Hide rows where quantity is 0
+  const data = rawData.filter((r) => r.quantity > 0);
+  const grouped = groupByLine(data);
+
+  // All sections start collapsed — click header to expand
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => new Set(grouped.keys())
+  );
 
   const toggle = (line: string) =>
     setCollapsed((prev) => {
@@ -89,9 +99,6 @@ export function DataTable({ data: rawData }: DataTableProps) {
       next.has(line) ? next.delete(line) : next.add(line);
       return next;
     });
-
-  // Hide rows where quantity is 0 — same behaviour as the Summary view
-  const data = rawData.filter((r) => r.quantity > 0);
 
   if (data.length === 0) {
     return (
@@ -104,8 +111,6 @@ export function DataTable({ data: rawData }: DataTableProps) {
       </div>
     );
   }
-
-  const grouped = groupByLine(data);
 
   return (
     <div className="space-y-5">

@@ -42,12 +42,17 @@ async function downloadSummaryExcel(data: ExcelRow[]) {
   XLSX.utils.book_append_sheet(wb, ws, 'Summary');
 
   const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
-  const blob = new Blob([Uint8Array.from(raw)], {
+  const blob = new Blob([new Uint8Array(raw)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);
-  Object.assign(document.createElement('a'), { href: url, download: 'production-summary.xlsx' }).click();
-  URL.revokeObjectURL(url);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = 'production-summary.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────

@@ -27,8 +27,8 @@ export default function HomePage() {
   const [isLoading, setLoading]             = useState(false);
   const [error, setError]                   = useState<string | null>(null);
   const [warning, setWarning]               = useState<string | null>(null);
-  const [showAnalytics, setShowAnalytics]   = useState(true);
-  const [showBoard, setShowBoard]           = useState(true);
+  const [showAnalytics, setShowAnalytics]   = useState(false);
+  const [showBoard, setShowBoard]           = useState(false);
 
   // Butter Chicken batch size confirmation
   const [showBCModal, setShowBCModal]       = useState(false);
@@ -78,8 +78,8 @@ export default function HomePage() {
     setEnrichedRows([]);
     setError(null);
     setWarning(null);
-    setShowAnalytics(true);
-    setShowBoard(true);
+    setShowAnalytics(false);
+    setShowBoard(false);
     setShowBCModal(false);
   }
 
@@ -250,68 +250,38 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* KPI strip */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
-                <p className="text-3xl font-bold text-blue-600 tabular-nums">
-                  {data.filteredData.length.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-medium">
-                  Filtered Rows
-                </p>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
-                <p className="text-3xl font-bold text-green-600 tabular-nums">
-                  {Object.keys(data.totalsByLine).length}
-                </p>
-                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-medium">
-                  Active Lines
-                </p>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
-                <p className="text-3xl font-bold text-purple-600 tabular-nums">
-                  {data.overallTotal.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-medium">
-                  Total Quantity
-                </p>
-              </div>
+            {/* ── Production Board (top) ────────────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowBoard((v) => !v)}
+                className="w-full flex items-center justify-between px-6 py-4
+                           text-left hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span className="font-semibold text-gray-700">Production Board</span>
+                  <span className="text-xs text-gray-400">(Blendtech &amp; Kettles)</span>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform duration-200
+                              ${showBoard ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showBoard && (
+                <div className="border-t border-gray-200 p-6">
+                  <ProductionBoard data={enrichedRows.length > 0 ? enrichedRows : data.filteredData} />
+                </div>
+              )}
             </div>
 
-            {/* ── MAIN: Filtered production line tables ──────────────────────── */}
+            {/* ── Filtered production line tables ────────────────────────────── */}
             <DataTable data={enrichedRows.length > 0 ? enrichedRows : data.filteredData} />
-
-            {/* ── Production Board (kettles) ─────────────────────────────────── */}
-            {enrichedRows.some((r) => r.line.startsWith('KETTLE')) && (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <button
-                  onClick={() => setShowBoard((v) => !v)}
-                  className="w-full flex items-center justify-between px-6 py-4
-                             text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                    <span className="font-semibold text-gray-700">Production Board</span>
-                    <span className="text-xs text-gray-400">(Kettle sequencing)</span>
-                  </div>
-                  <svg
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200
-                                ${showBoard ? 'rotate-180' : ''}`}
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showBoard && (
-                  <div className="border-t border-gray-200 p-6">
-                    <ProductionBoard data={enrichedRows} />
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* ── Analytics accordion (Summary) ─────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
