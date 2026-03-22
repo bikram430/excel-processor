@@ -30,7 +30,7 @@ import {
   needsCleaning,
   ALLERGEN_OPTIONS,
 } from '@/lib/allergenRules';
-import { downloadStyledExcel } from '@/lib/excelExport';
+import { downloadBoardPDF } from '@/lib/pdfExport';
 import { smartAssignKettles, getPreferredKettles } from '@/lib/kettlePreferences';
 
 // ── Line config ────────────────────────────────────────────────────────────
@@ -145,13 +145,6 @@ function sortByTime(items: BoardItem[]): BoardItem[] {
   });
 }
 
-// ── Excel downloads ────────────────────────────────────────────────────────
-async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeLines: string[]) {
-  await downloadStyledExcel(
-    Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
-    activeLines, 'production-board.xlsx',
-  );
-}
 
 // ── Product card (visual only — drag handled by SortableCard wrapper) ──────
 function ProductCard({
@@ -517,6 +510,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [activeId,    setActiveId]    = useState<string | null>(null);
   const [overLine,    setOverLine]    = useState<string | null>(null);
   const [blockedLine, setBlockedLine] = useState<string | null>(null);
+  const [pdfLoading,  setPdfLoading]  = useState(false);
   const snapshot     = useRef<Record<string, BoardItem[]> | null>(null);
   const lastOverRef  = useRef<string | null>(null);
   const boardRef     = useRef<HTMLDivElement>(null);
@@ -724,16 +718,40 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
           Smart Assign Kettles
         </button>
         <button
-          onClick={() => downloadWholeBoard(allItems, activeLines)}
+          disabled={pdfLoading}
+          onClick={async () => {
+            setPdfLoading(true);
+            try {
+              await downloadBoardPDF(
+                Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
+                activeLines,
+                'production-board.pdf',
+              );
+            } finally {
+              setPdfLoading(false);
+            }
+          }}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
                      text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-95
-                     transition-all shadow-sm w-full sm:w-auto"
+                     transition-all shadow-sm w-full sm:w-auto disabled:opacity-60 disabled:cursor-wait"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Download Whole Board (.xlsx)
+          {pdfLoading ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Generating PDF…
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download Board (PDF)
+            </>
+          )}
         </button>
       </div>
 
