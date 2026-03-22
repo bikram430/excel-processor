@@ -147,22 +147,18 @@ export function DraggableList({ initialItems, onChange }: DraggableListProps) {
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      setItems((prev) => {
-        const oldIdx = prev.findIndex((i) => i.id === active.id);
-        const newIdx = prev.findIndex((i) => i.id === over.id);
-        const next = arrayMove(prev, oldIdx, newIdx);
-        onChange?.(next);
-        return next;
-      });
+      const oldIdx = items.findIndex((i) => i.id === active.id);
+      const newIdx = items.findIndex((i) => i.id === over.id);
+      const next = arrayMove(items, oldIdx, newIdx);
+      setItems(next);
+      onChange?.(next);
     }
   }
 
   function handleTimeChange(id: string, time: string) {
-    setItems((prev) => {
-      const next = prev.map((i) => (i.id === id ? { ...i, time } : i));
-      onChange?.(next);
-      return next;
-    });
+    const next = items.map((i) => (i.id === id ? { ...i, time } : i));
+    setItems(next);
+    onChange?.(next);
   }
 
   // Compute display list with auto-inserted cleaning steps
