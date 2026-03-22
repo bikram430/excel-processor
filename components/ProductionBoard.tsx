@@ -23,7 +23,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ExcelRow, BoardItem } from '@/types';
-import { getProductAllergens, suggestOrder, insertCleaningSteps } from '@/lib/allergenRules';
+import {
+  getProductAllergens,
+  suggestOrder,
+  insertCleaningSteps,
+  ALLERGEN_OPTIONS,
+} from '@/lib/allergenRules';
 import { downloadStyledExcel } from '@/lib/excelExport';
 
 // ── Line config ────────────────────────────────────────────────────────────
@@ -43,7 +48,6 @@ const LINE_CAPS: Record<string, number> = {
   'BLENDTECH':            2000,
 };
 
-/** Label shown in each column header */
 const LINE_LABEL: Record<string, string> = {
   'KETTLE 1 SOUP':        'Kettle (K1)',
   'KETTLE 2 DIRECT FILL': 'Kettle (K2)',
@@ -52,7 +56,6 @@ const LINE_LABEL: Record<string, string> = {
   'BLENDTECH':            'Blentech',
 };
 
-/** Short label for Move-to buttons */
 const LINE_SHORT: Record<string, string> = {
   'KETTLE 1 SOUP':        'K1',
   'KETTLE 2 DIRECT FILL': 'K2',
@@ -61,12 +64,15 @@ const LINE_SHORT: Record<string, string> = {
   'BLENDTECH':            'BT',
 };
 
-const ALLERGEN_COLOURS: Record<string, string> = {
-  DAIRY:  'bg-yellow-100 text-yellow-800 border-yellow-200',
-  MEAT:   'bg-red-100   text-red-800   border-red-200',
-  EGG:    'bg-orange-100 text-orange-800 border-orange-200',
-  GLUTEN: 'bg-amber-100  text-amber-800  border-amber-200',
-  NUT:    'bg-lime-100   text-lime-800   border-lime-200',
+// ── Allergen colours (new schema) ──────────────────────────────────────────
+// dairy/eggs=red, fish=orange, soy=purple, sulphite=white/gray, wheat=blue, allergen-free=green
+const ALLERGEN_COLOURS: Record<string, { badge: string; select: string }> = {
+  DAIRY:        { badge: 'bg-red-100    text-red-700    border-red-300',    select: 'bg-red-50    text-red-700'    },
+  FISH:         { badge: 'bg-orange-100 text-orange-700 border-orange-300', select: 'bg-orange-50 text-orange-700' },
+  SOY:          { badge: 'bg-purple-100 text-purple-700 border-purple-300', select: 'bg-purple-50 text-purple-700' },
+  SULPHITE:     { badge: 'bg-white      text-gray-600   border-gray-400',   select: 'bg-gray-50   text-gray-600'   },
+  WHEAT:        { badge: 'bg-blue-100   text-blue-700   border-blue-300',   select: 'bg-blue-50   text-blue-700'   },
+  ALLERGEN_FREE:{ badge: 'bg-green-100  text-green-700  border-green-300',  select: 'bg-green-50  text-green-700'  },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -105,39 +111,34 @@ function findItem(id: string, allItems: Record<string, BoardItem[]>): BoardItem 
   return null;
 }
 
-/**
- * Parse "2000×2 / 1500×1" style batchBreakdown into individual sizes.
- * Marks each size as full (R) if it equals the maximum in the list.
- */
+/** Parse "2000×2 / 950×1" into individual sizes */
 function parseBatchSizes(
   breakdown: string,
   batches: number,
-  quantity: number,
+  qty: number,
 ): { kg: number; full: boolean }[] {
-  // Strip meat-sauce output note e.g. "(→4000kg out)"
   const cleaned = breakdown.replace(/\s*\(→[\d,]+kg out\)/g, '');
   const matches  = [...cleaned.matchAll(/(\d+)×(\d+)/g)];
-
   if (matches.length > 0) {
-    const sizes: { kg: number; full: boolean }[] = [];
     const maxKg = Math.max(...matches.map(m => parseInt(m[1])));
+    const out: { kg: number; full: boolean }[] = [];
     for (const m of matches) {
-      const kg    = parseInt(m[1]);
-      const count = parseInt(m[2]);
-      for (let i = 0; i < count; i++) {
-        sizes.push({ kg, full: kg === maxKg });
-      }
+      const kg = parseInt(m[1]);
+      const n  = parseInt(m[2]);
+      for (let i = 0; i < n; i++) out.push({ kg, full: kg === maxKg });
     }
-    return sizes;
+    return out;
   }
-
-  // Fallback: uniform
-  const n        = Math.max(batches, 1);
-  const perBatch = Math.ceil(quantity / n);
-  return Array.from({ length: n }, () => ({ kg: perBatch, full: true }));
+  const n = Math.max(batches, 1);
+  return Array.from({ length: n }, () => ({ kg: Math.ceil(qty / n), full: true }));
 }
 
-// ── Excel downloads (delegate to styled exporter) ─────────────────────────
+/** Get current allergen key for display (first in array or ALLERGEN_FREE) */
+function allergenKey(item: BoardItem): string {
+  return item.allergens[0] ?? 'ALLERGEN_FREE';
+}
+
+// ── Excel downloads ────────────────────────────────────────────────────────
 async function downloadLineSequence(line: string, items: BoardItem[]) {
   await downloadStyledExcel(
     { [line]: items },
@@ -154,11 +155,12 @@ async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeL
   );
 }
 
-// ── Product card (whiteboard style) ───────────────────────────────────────
+// ── Product card ───────────────────────────────────────────────────────────
 function ProductCard({
   item,
   position,
   onTimeChange,
+  onAllergenChange,
   dragProps = {},
   activeLines = [],
   onMoveTo,
@@ -166,12 +168,15 @@ function ProductCard({
   item: BoardItem;
   position: number;
   onTimeChange?: (id: string, time: string) => void;
+  onAllergenChange?: (id: string, allergen: string) => void;
   dragProps?: Record<string, unknown>;
   activeLines?: string[];
   onMoveTo?: (id: string, targetLine: string) => void;
 }) {
   const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
   const otherLines = activeLines.filter(l => l !== item.line);
+  const aKey       = allergenKey(item);
+  const aColours   = ALLERGEN_COLOURS[aKey] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden text-left">
@@ -210,42 +215,41 @@ function ProductCard({
             <span className="font-semibold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
           </p>
 
-          {/* ── Individual batch sizes ── */}
+          {/* ── Individual batch sizes (* notation) ── */}
           <div className="mt-1.5 pt-1 border-t border-gray-100 space-y-0.5">
             {batchSizes.map((b, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <span className="text-[9px] text-gray-300 font-mono w-3 flex-shrink-0 text-right tabular-nums">
-                  {i + 1}
+                <span className="text-[9px] text-indigo-400 font-mono font-bold w-5 flex-shrink-0 text-right tabular-nums">
+                  *{i + 1}
                 </span>
-                <span className={`text-[11px] font-mono font-bold tabular-nums ${
-                  b.full ? 'text-indigo-700' : 'text-indigo-400'
-                }`}>
+                <span className="text-[11px] font-mono font-bold tabular-nums text-indigo-700">
                   {b.kg.toLocaleString()} kg
                 </span>
-                {b.full && (
-                  <span className="text-[8px] text-indigo-500 font-bold bg-indigo-50 border
-                                   border-indigo-200 px-0.5 py-px rounded leading-none">
-                    R
-                  </span>
-                )}
               </div>
             ))}
           </div>
 
-          {/* Allergen badges */}
-          {item.allergens.length > 0 && (
-            <div className="flex gap-1 mt-1.5 flex-wrap">
-              {item.allergens.map(a => (
-                <span
-                  key={a}
-                  className={`px-1 py-px rounded text-[8px] font-bold border leading-none
-                              ${ALLERGEN_COLOURS[a] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* ── Allergen badge + manual selector ── */}
+          <div className="mt-1.5 pt-1 border-t border-gray-100">
+            {/* Current allergen badge */}
+            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border leading-none mb-1 ${aColours.badge}`}>
+              {ALLERGEN_OPTIONS.find(o => o.value === aKey)?.label ?? aKey}
+            </span>
+
+            {/* Selector */}
+            {onAllergenChange && (
+              <select
+                value={aKey}
+                onChange={e => onAllergenChange(item.id, e.target.value)}
+                className={`w-full text-[9px] border border-gray-200 rounded px-1 py-0.5
+                           focus:outline-none focus:ring-1 focus:ring-indigo-400 ${aColours.select}`}
+              >
+                {ALLERGEN_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
           {/* Start-time input */}
           {onTimeChange && (
@@ -301,12 +305,14 @@ function SortableCard({
   item,
   position,
   onTimeChange,
+  onAllergenChange,
   activeLines,
   onMoveTo,
 }: {
   item: BoardItem;
   position: number;
   onTimeChange: (id: string, time: string) => void;
+  onAllergenChange: (id: string, allergen: string) => void;
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
 }) {
@@ -322,6 +328,7 @@ function SortableCard({
         item={item}
         position={position}
         onTimeChange={onTimeChange}
+        onAllergenChange={onAllergenChange}
         dragProps={{ ...attributes, ...listeners }}
         activeLines={activeLines}
         onMoveTo={onMoveTo}
@@ -349,6 +356,7 @@ function LineColumn({
   line,
   items,
   onTimeChange,
+  onAllergenChange,
   isDropTarget,
   blockedItem,
   activeLines,
@@ -357,13 +365,13 @@ function LineColumn({
   line: string;
   items: BoardItem[];
   onTimeChange: (id: string, time: string) => void;
+  onAllergenChange: (id: string, allergen: string) => void;
   isDropTarget: boolean;
   blockedItem: BoardItem | null;
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: line });
-  const cap        = LINE_CAPS[line];
   const totalKg    = items.reduce((s, i) => s + i.quantity, 0);
   const totalBatch = items.reduce((s, i) => s + i.batches, 0);
   const highlighted = isDropTarget && !blockedItem;
@@ -377,7 +385,12 @@ function LineColumn({
   }
 
   return (
-    <div className={`flex-1 min-w-[150px] flex flex-col transition-colors ${
+    /*
+     * min-w-[88vw] → on mobile (~375px) this is ~330px, showing ~1 kettle at a time.
+     * sm:min-w-0 sm:flex-1 → on desktop, columns share space equally.
+     */
+    <div className={`flex-shrink-0 min-w-[88vw] sm:min-w-0 sm:flex-1 flex flex-col
+                     border-r last:border-r-0 border-gray-200 transition-colors ${
       blocked ? 'bg-red-50/60' : highlighted ? 'bg-blue-50/20' : 'bg-white'
     }`}>
 
@@ -387,16 +400,9 @@ function LineColumn({
         highlighted ? 'bg-blue-700  border-blue-900' :
                       'bg-slate-800 border-slate-900'
       }`}>
-        {/* Title */}
         <p className="font-bold text-white text-sm leading-tight">
           {LINE_LABEL[line] ?? line}
         </p>
-        {cap && (
-          <p className="text-[10px] text-slate-300 font-mono mt-0.5">
-            max {cap.toLocaleString()} kg/batch
-          </p>
-        )}
-        {/* Stats */}
         <div className="mt-1.5 space-y-px">
           <p className="text-[10px] text-slate-300">
             {items.length} product{items.length !== 1 ? 's' : ''} · {totalBatch} batch{totalBatch !== 1 ? 'es' : ''}
@@ -405,12 +411,14 @@ function LineColumn({
             {totalKg.toLocaleString()} kg
           </p>
         </div>
+
         {/* Incompatibility warning */}
         {blocked && blockedItem && (
           <p className="mt-1 text-[10px] text-red-100 font-semibold leading-snug">
             ✕ Needs {blockedItem.physicalBatchSize.toLocaleString()} kg/batch
           </p>
         )}
+
         {/* Per-line download */}
         <button
           onClick={() => downloadLineSequence(line, items)}
@@ -443,6 +451,7 @@ function LineColumn({
                 item={item}
                 position={positions[item.id]}
                 onTimeChange={onTimeChange}
+                onAllergenChange={onAllergenChange}
                 activeLines={activeLines}
                 onMoveTo={onMoveTo}
               />
@@ -496,6 +505,24 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // ── Allergen change ──────────────────────────────────────────────────────
+  function handleAllergenChange(id: string, allergenValue: string) {
+    setAllItems(prev => {
+      const next = { ...prev };
+      for (const line of Object.keys(next)) {
+        if (next[line].some(i => i.id === id)) {
+          next[line] = next[line].map(i =>
+            i.id === id
+              ? { ...i, allergens: allergenValue === 'ALLERGEN_FREE' ? [] : [allergenValue] }
+              : i
+          );
+          break;
+        }
+      }
+      return next;
+    });
+  }
 
   // ── Move-to (button) ────────────────────────────────────────────────────
   function moveItem(itemId: string, targetLine: string) {
@@ -625,8 +652,8 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <p className="text-xs text-gray-400 flex-1">
-          Drag grip to reorder within a line · <strong>Move→</strong> buttons to transfer between lines ·
-          Red column = incompatible
+          Drag grip to reorder · <strong>Move→</strong> to transfer between lines ·
+          Swipe right on mobile to see all kettles
         </p>
         <button
           onClick={() => downloadWholeBoard(allItems, activeLines)}
@@ -644,7 +671,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
       {/* ── Whiteboard columns ───────────────────────────────────────────── */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex divide-x divide-gray-200 min-w-[600px]">
+        <div className="flex divide-x divide-gray-200">
           {activeLines.map(line => {
             const items    = allItems[line] ?? [];
             const isTarget = overLine === line && activeId !== null;
@@ -655,6 +682,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
                 line={line}
                 items={items}
                 onTimeChange={handleTimeChange}
+                onAllergenChange={handleAllergenChange}
                 isDropTarget={isTarget}
                 blockedItem={blocked}
                 activeLines={activeLines}

@@ -1,68 +1,75 @@
 import { BoardItem } from '@/types';
 
-// ── Allergen keyword detection ─────────────────────────────────────────────
-const ALLERGEN_KEYWORDS: Record<string, string[]> = {
-  DAIRY:  ['butter', 'cream', 'cheese', 'milk', 'dairy', 'bechamel'],
-  MEAT:   ['meat', 'beef', 'chicken', 'pork', 'lamb', 'mince', 'bacon', 'ham', 'prawn', 'seafood', 'fish', 'tuna'],
-  EGG:    ['egg'],
-  GLUTEN: ['pasta', 'lasagne', 'lasagna', 'noodle', 'wheat', 'barley', 'rye', 'bread', 'flour'],
-  NUT:    ['nut', 'peanut', 'almond', 'cashew', 'walnut', 'pistachio'],
+// ── Allergen types (official food safety categories) ───────────────────────
+export const ALLERGEN_OPTIONS = [
+  { value: 'ALLERGEN_FREE', label: 'Allergen Free' },
+  { value: 'DAIRY',         label: 'Dairy/Milk'    },
+  { value: 'FISH',          label: 'Fish'           },
+  { value: 'SOY',           label: 'Soy'            },
+  { value: 'SULPHITE',      label: 'Sulphite'       },
+  { value: 'WHEAT',         label: 'Wheat/Gluten'   },
+] as const;
+
+export type AllergenKey = typeof ALLERGEN_OPTIONS[number]['value'];
+
+// ── Auto-detection keywords ───────────────────────────────────────────────
+const ALLERGEN_KEYWORDS: Record<AllergenKey, string[]> = {
+  ALLERGEN_FREE: [],
+  DAIRY:    ['butter', 'cream', 'cheese', 'milk', 'dairy', 'bechamel', 'egg', 'carbonara', 'parmesan', 'feta', 'ricotta'],
+  FISH:     ['fish', 'tuna', 'salmon', 'prawn', 'seafood', 'anchovy', 'sardine', 'scallop', 'mussel', 'crab', 'lobster'],
+  SOY:      ['soy', 'tofu', 'miso', 'edamame', 'tempeh'],
+  SULPHITE: ['wine', 'vinegar', 'sulphite', 'sulfite'],
+  WHEAT:    ['pasta', 'lasagne', 'lasagna', 'noodle', 'wheat', 'bread', 'flour', 'barley', 'rye', 'bolognese', 'bolog', 'pesto'],
 };
 
-const VEGAN_KEYWORDS = ['vegan', 'plant', 'tofu', 'lentil', 'chickpea', 'minestrone', 'tomato', 'vegetable'];
-// Items that look like they might have meat/dairy but are actually vegan
-const VEGAN_OVERRIDE = ['vegan'];
+// Detection order — first match wins (most severe first so labelling is conservative)
+const DETECT_ORDER: AllergenKey[] = ['FISH', 'DAIRY', 'WHEAT', 'SOY', 'SULPHITE'];
 
-export function getProductAllergens(product: string): string[] {
+/** Auto-detect allergen from product name; returns a single AllergenKey */
+export function detectAllergen(product: string): AllergenKey {
   const lower = product.toLowerCase();
-  // If product contains "vegan" override, skip animal allergen detection
-  const isVeganItem = VEGAN_OVERRIDE.some((kw) => lower.includes(kw));
-  const allergens: string[] = [];
-  for (const [allergen, keywords] of Object.entries(ALLERGEN_KEYWORDS)) {
-    if (isVeganItem && (allergen === 'DAIRY' || allergen === 'MEAT' || allergen === 'EGG')) continue;
-    if (keywords.some((kw) => lower.includes(kw))) {
-      allergens.push(allergen);
-    }
+  const isVegan = lower.includes('vegan');
+
+  for (const key of DETECT_ORDER) {
+    if (isVegan && (key === 'DAIRY' || key === 'FISH')) continue;
+    if (ALLERGEN_KEYWORDS[key].some(kw => lower.includes(kw))) return key;
   }
-  return allergens;
+  return 'ALLERGEN_FREE';
 }
 
-export function isVegan(product: string): boolean {
-  const lower = product.toLowerCase();
-  return (
-    VEGAN_KEYWORDS.some((kw) => lower.includes(kw)) ||
-    VEGAN_OVERRIDE.some((kw) => lower.includes(kw))
-  ) && !['meat', 'beef', 'chicken', 'pork', 'bacon', 'ham'].some((kw) => lower.includes(kw));
+/** Returns allergens as a 1-element array for backward compatibility */
+export function getProductAllergens(product: string): string[] {
+  const key = detectAllergen(product);
+  return key === 'ALLERGEN_FREE' ? [] : [key];
 }
 
 /** Returns true if a cleaning step is needed between prev → next */
 export function needsCleaning(prev: BoardItem, next: BoardItem): boolean {
-  if (prev.allergens.length === 0) return false;
-  if (next.allergens.length === 0) return true; // allergen → clean product
-  // Also clean if next is vegan but prev had animal allergens
-  if (isVegan(next.product) && prev.allergens.some((a) => ['DAIRY', 'MEAT', 'EGG'].includes(a))) return true;
-  return false;
+  const prevKey = prev.allergens[0] ?? 'ALLERGEN_FREE';
+  const nextKey = next.allergens[0] ?? 'ALLERGEN_FREE';
+  if (prevKey === 'ALLERGEN_FREE') return false;     // no allergen → no clean
+  if (prevKey === nextKey)         return false;     // same allergen → no clean
+  return true;                                       // allergen change → clean
 }
 
 /**
- * Suggest a run order:
- *   1. Vegan / non-allergen products first
- *   2. Low-allergen products
- *   3. High-allergen (DAIRY, MEAT, EGG) last
+ * Suggest run order: allergen-free first, then by increasing allergen severity.
+ * Standard food-safe practice: process allergen-free batches before introducing allergens.
  */
 export function suggestOrder(items: BoardItem[]): BoardItem[] {
+  const score: Record<AllergenKey, number> = {
+    ALLERGEN_FREE: 0,
+    WHEAT:         1,
+    SOY:           2,
+    SULPHITE:      3,
+    FISH:          4,
+    DAIRY:         5,
+  };
   return [...items].sort((a, b) => {
-    const scoreA = allergenScore(a);
-    const scoreB = allergenScore(b);
-    return scoreA - scoreB;
+    const aKey = (a.allergens[0] ?? 'ALLERGEN_FREE') as AllergenKey;
+    const bKey = (b.allergens[0] ?? 'ALLERGEN_FREE') as AllergenKey;
+    return (score[aKey] ?? 0) - (score[bKey] ?? 0);
   });
-}
-
-function allergenScore(item: BoardItem): number {
-  const allergens = item.allergens;
-  if (allergens.length === 0) return 0;
-  if (allergens.some((a) => ['MEAT', 'DAIRY', 'EGG'].includes(a))) return 2;
-  return 1;
 }
 
 /** Insert cleaning-step markers between items that need a clean */
