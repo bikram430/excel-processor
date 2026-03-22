@@ -27,7 +27,7 @@ import { ExcelRow, BoardItem } from '@/types';
 import {
   getProductAllergens,
   suggestOrder,
-  insertCleaningSteps,
+  needsCleaning,
   ALLERGEN_OPTIONS,
 } from '@/lib/allergenRules';
 import { downloadStyledExcel } from '@/lib/excelExport';
@@ -157,6 +157,7 @@ async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeL
 function ProductCard({
   item,
   position,
+  needsCleanBefore = false,
   onTimeChange,
   onAllergenChange,
   activeLines = [],
@@ -167,6 +168,7 @@ function ProductCard({
 }: {
   item: BoardItem;
   position: number;
+  needsCleanBefore?: boolean;
   onTimeChange?: (id: string, time: string) => void;
   onAllergenChange?: (id: string, allergen: string) => void;
   activeLines?: string[];
@@ -186,6 +188,17 @@ function ProductCard({
       isHolding  ? 'shadow-2xl scale-[1.03] ring-2 ring-indigo-400 border-indigo-200 border' :
                    'shadow-sm border border-gray-200'
     }`}>
+
+      {/* ── Inline CIP indicator (no separate element — stays in row) ── */}
+      {needsCleanBefore && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border-b border-amber-200">
+          <svg className="w-3 h-3 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">CIP / Clean before this</span>
+        </div>
+      )}
 
       {/*
        * ── DRAG HANDLE (hold here to drag) ──────────────────────────────
@@ -321,6 +334,7 @@ function ProductCard({
 function SortableCard({
   item,
   position,
+  needsCleanBefore,
   onTimeChange,
   onAllergenChange,
   activeLines,
@@ -328,6 +342,7 @@ function SortableCard({
 }: {
   item: BoardItem;
   position: number;
+  needsCleanBefore: boolean;
   onTimeChange: (id: string, time: string) => void;
   onAllergenChange: (id: string, allergen: string) => void;
   activeLines: string[];
@@ -371,6 +386,7 @@ function SortableCard({
       <ProductCard
         item={item}
         position={position}
+        needsCleanBefore={needsCleanBefore}
         onTimeChange={onTimeChange}
         onAllergenChange={onAllergenChange}
         activeLines={activeLines}
@@ -379,20 +395,6 @@ function SortableCard({
         isHolding={isHolding && !isDragging}
         isDragging={isDragging}
       />
-    </div>
-  );
-}
-
-// ── Cleaning step banner ───────────────────────────────────────────────────
-function CleaningStep() {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200
-                    rounded-xl text-amber-700 text-xs font-semibold pointer-events-none">
-      <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      CIP / Cleaning Required
     </div>
   );
 }
@@ -417,11 +419,11 @@ function LineColumn({
   const highlighted = isDropTarget && !blockedItem;
   const blocked     = !!blockedItem;
 
-  const displayItems = insertCleaningSteps(items);
   const positions: Record<string, number> = {};
-  let pos = 0;
-  for (const e of displayItems) {
-    if (e.type !== 'cleaning') positions[e.id] = ++pos;
+  items.forEach((item, i) => { positions[item.id] = i + 1; });
+  const cleanBefore = new Set<string>();
+  for (let i = 1; i < items.length; i++) {
+    if (needsCleaning(items[i - 1], items[i])) cleanBefore.add(items[i].id);
   }
 
   return (
@@ -462,21 +464,18 @@ function LineColumn({
         }`}
       >
         <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-          {displayItems.map(entry => {
-            if (entry.type === 'cleaning') return <CleaningStep key={entry.id} />;
-            const item = entry as BoardItem;
-            return (
-              <SortableCard
-                key={item.id}
-                item={item}
-                position={positions[item.id]}
-                onTimeChange={onTimeChange}
-                onAllergenChange={onAllergenChange}
-                activeLines={activeLines}
-                onMoveTo={onMoveTo}
-              />
-            );
-          })}
+          {items.map(item => (
+            <SortableCard
+              key={item.id}
+              item={item}
+              position={positions[item.id]}
+              needsCleanBefore={cleanBefore.has(item.id)}
+              onTimeChange={onTimeChange}
+              onAllergenChange={onAllergenChange}
+              activeLines={activeLines}
+              onMoveTo={onMoveTo}
+            />
+          ))}
           {items.length === 0 && (
             <div className="flex items-center justify-center h-20 text-[11px] text-gray-300
                             border-2 border-dashed border-gray-200 rounded-xl">
