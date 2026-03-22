@@ -224,9 +224,9 @@ function CardContent({
         )}
       </div>
 
-      {/* ── Mobile: "Move to" buttons ── */}
+      {/* ── "Move to" buttons (all screen sizes) ── */}
       {onMoveTo && otherLines.length > 0 && (
-        <div className="sm:hidden px-3 pb-3 pt-1 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
+        <div className="px-3 pb-3 pt-1 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] text-gray-400 font-medium">Move to:</span>
           {otherLines.map(targetLine => {
             const compat = isCompatible(item, targetLine);
@@ -573,9 +573,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       {/* ── Top toolbar ─────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <p className="text-xs text-gray-400 flex-1">
-          <span className="hidden sm:inline">Drag to reorder · </span>
-          <span className="sm:hidden">Use Move to buttons to transfer between lines · </span>
-          Red border = incompatible
+          Drag handle to reorder within a line · Use <strong>Move to</strong> buttons to transfer between lines · Red = incompatible
         </p>
         <button
           onClick={() => downloadWholeBoard(allItems, activeLines)}
