@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // xlsx is a server-only package; prevent it from being bundled for the client
+  // Keep @react-pdf/renderer server-side only — it uses Node.js APIs
+  // (canvas, zlib, fs) that cannot be bundled for the browser.
+  serverExternalPackages: ['@react-pdf/renderer'],
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -9,6 +12,8 @@ const nextConfig = {
         path: false,
         stream: false,
         crypto: false,
+        canvas: false,
+        zlib: false,
       };
     }
     return config;
