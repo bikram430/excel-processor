@@ -148,14 +148,14 @@ function CardContent({
         </div>
 
         {/* Main info */}
-        <div className="flex-1 px-4 py-3 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm truncate">{item.product}</p>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
+        <div className="flex-1 px-3 sm:px-4 py-3 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm leading-snug">{item.product}</p>
+          <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
             <span className="text-xs text-gray-500 font-mono">{item.quantity.toLocaleString()} kg</span>
             <span className="text-xs text-indigo-700 font-mono font-semibold">
               {item.batches} batch{item.batches !== 1 ? 'es' : ''}
             </span>
-            <span className="text-xs text-indigo-500 font-mono">[{item.batchBreakdown}]</span>
+            <span className="text-xs text-indigo-400 font-mono hidden sm:inline">[{item.batchBreakdown}]</span>
           </div>
           {item.allergens.length > 0 && (
             <div className="flex gap-1 mt-1.5 flex-wrap">
@@ -167,11 +167,24 @@ function CardContent({
               ))}
             </div>
           )}
+          {/* Time input — inline on mobile */}
+          {onTimeChange && (
+            <div className="sm:hidden mt-2 flex items-center gap-2">
+              <span className="text-xs text-gray-400">Start:</span>
+              <input
+                type="time"
+                value={item.time}
+                onChange={e => onTimeChange(item.id, e.target.value)}
+                className="flex-1 text-xs font-mono text-gray-700 border border-gray-200 rounded
+                           px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Time input */}
+        {/* Time input — right panel on desktop */}
         {onTimeChange && (
-          <div className="flex items-center px-3 border-l border-gray-100">
+          <div className="hidden sm:flex items-center px-3 border-l border-gray-100">
             <input
               type="time"
               value={item.time}
@@ -276,14 +289,16 @@ function LineSection({
     }`}>
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-gray-900 text-sm">{line}</span>
-          {cap && (
-            <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
-              max {cap.toLocaleString()} kg/batch
-            </span>
-          )}
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-100 flex items-start justify-between flex-wrap gap-2">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-gray-900 text-sm">{line}</span>
+            {cap && (
+              <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                max {cap.toLocaleString()} kg/batch
+              </span>
+            )}
+          </div>
           <span className="text-xs text-gray-400">
             {items.length} product{items.length !== 1 ? 's' : ''} · {totalBatch} batch{totalBatch !== 1 ? 'es' : ''} · {totalKg.toLocaleString()} kg
           </span>

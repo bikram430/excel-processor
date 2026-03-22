@@ -173,21 +173,19 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
 
         {/* ── Upload panel ─────────────────────────────────────────────────── */}
         {!data && !isLoading && (
           <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Upload Production Data</h2>
+            <div className="text-center mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Upload Production Data</h2>
               <p className="mt-2 text-sm text-gray-500 leading-relaxed">
-                Upload your Excel file. Rows matching the valid production lines below
-                will be extracted, displayed in separate tables, and made available to download
-                as individual <strong>.xlsx</strong> files.
+                Upload your Excel file. Rows matching valid production lines will be extracted and made available to download.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
               <FileUpload onData={handleData} onLoading={setLoading} onError={setError} />
             </div>
 
@@ -254,8 +252,8 @@ export default function HomePage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <button
                 onClick={() => setShowBoard((v) => !v)}
-                className="w-full flex items-center justify-between px-6 py-4
-                           text-left hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between px-4 sm:px-6 py-4
+                           text-left hover:bg-gray-50 transition-colors min-h-[52px]"
               >
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -274,7 +272,7 @@ export default function HomePage() {
                 </svg>
               </button>
               {showBoard && (
-                <div className="border-t border-gray-200 p-6">
+                <div className="border-t border-gray-200 p-3 sm:p-6">
                   <ProductionBoard data={enrichedRows.length > 0 ? enrichedRows : data.filteredData} />
                 </div>
               )}
@@ -287,8 +285,8 @@ export default function HomePage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <button
                 onClick={() => setShowAnalytics((v) => !v)}
-                className="w-full flex items-center justify-between px-6 py-4
-                           text-left hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between px-4 sm:px-6 py-4
+                           text-left hover:bg-gray-50 transition-colors min-h-[52px]"
               >
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -311,7 +309,7 @@ export default function HomePage() {
               </button>
 
               {showAnalytics && (
-                <div className="border-t border-gray-200 p-6">
+                <div className="border-t border-gray-200 p-3 sm:p-6">
                   <Summary
                     filteredData={data.filteredData}
                     overallTotal={data.overallTotal}

@@ -116,7 +116,7 @@ export function DataTable({ data: rawData }: DataTableProps) {
     <div className="space-y-5">
 
       {/* ── Global toolbar ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-gray-500">
           <span className="font-semibold text-gray-800">{data.length.toLocaleString()}</span> rows
           filtered across{' '}
@@ -128,9 +128,9 @@ export function DataTable({ data: rawData }: DataTableProps) {
           onClick={() =>
             downloadAsExcel(data, 'all-filtered-production-data.xlsx', true)
           }
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 rounded-lg text-sm
                      font-semibold text-white bg-blue-600 hover:bg-blue-700
-                     active:scale-95 transition-all shadow-sm"
+                     active:scale-95 transition-all shadow-sm w-full sm:w-auto"
         >
           <DownloadIcon />
           Download All Lines (.xlsx)
@@ -148,7 +148,7 @@ export function DataTable({ data: rawData }: DataTableProps) {
             className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
           >
             {/* Card header */}
-            <div className="flex items-center gap-3 px-5 py-3.5 bg-slate-50 border-b border-gray-200">
+            <div className="flex items-center gap-2 px-3 sm:px-5 py-3 sm:py-3.5 bg-slate-50 border-b border-gray-200">
 
               {/* Expand / collapse toggle */}
               <button
@@ -195,106 +195,119 @@ export function DataTable({ data: rawData }: DataTableProps) {
               </button>
             </div>
 
-            {/* Table — hidden when collapsed */}
+            {/* Expanded content */}
             {!isCollapsed && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-white border-b border-gray-100">
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-8">
-                        #
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Product
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Item Code
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Qty
-                      </th>
-                      {hasBatches && (
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
-                          Batches
-                        </th>
-                      )}
-                      {hasBatches && (
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
-                          Breakdown
-                        </th>
-                      )}
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        UOM
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Type
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Planning Group
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Sequence
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Comments
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-gray-50">
-                    {rows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-4 py-3 text-xs text-gray-300">{idx + 1}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
-                          {row.product}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
-                          {row.itemCode}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
-                          {row.quantity.toLocaleString()}
-                        </td>
-                        {hasBatches && (
-                          <td className="px-4 py-3 text-right font-mono font-bold text-indigo-700">
-                            {row.batches ?? 0}
-                          </td>
-                        )}
-                        {hasBatches && (
-                          <td className="px-4 py-3 font-mono text-xs text-indigo-600 whitespace-nowrap">
-                            {row.batchBreakdown ?? '—'}
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-gray-500">{row.uom}</td>
-                        <td className="px-4 py-3">
-                          {row.type && (
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
-                              {row.type}
-                            </span>
+              <>
+                {/* ── Mobile: card list ─────────────────────────────────── */}
+                <div className="sm:hidden divide-y divide-gray-100">
+                  {rows.map((row, idx) => (
+                    <div key={idx} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-800 text-sm leading-snug">{row.product}</p>
+                          {row.itemCode && (
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">{row.itemCode}</p>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{row.planningGroup}</td>
-                        <td className="px-4 py-3 text-center text-gray-500">{row.sequence}</td>
-                        <td className="px-4 py-3 text-gray-500 max-w-xs">{row.comments}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                          {(row.uom || row.type) && (
+                            <div className="flex gap-1.5 mt-1 flex-wrap">
+                              {row.uom && (
+                                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-medium">
+                                  {row.uom}
+                                </span>
+                              )}
+                              {row.type && (
+                                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium">
+                                  {row.type}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-bold text-gray-900 font-mono tabular-nums">
+                            {row.quantity.toLocaleString()}
+                          </p>
+                          {hasBatches && row.batches !== undefined && (
+                            <p className="text-xs text-indigo-600 font-mono font-semibold">
+                              {row.batches} batch{row.batches !== 1 ? 'es' : ''}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {hasBatches && row.batchBreakdown && row.batchBreakdown !== '—' && (
+                        <p className="text-xs text-indigo-400 font-mono mt-1">[{row.batchBreakdown}]</p>
+                      )}
+                      {row.comments && (
+                        <p className="text-xs text-gray-400 mt-1 italic">{row.comments}</p>
+                      )}
+                    </div>
+                  ))}
+                  {/* Mobile subtotal */}
+                  <div className="px-4 py-3 bg-slate-50 border-t-2 border-gray-200 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Subtotal</span>
+                    <span className="font-bold font-mono text-gray-900 tabular-nums">{lineTotal.toLocaleString()}</span>
+                  </div>
+                </div>
 
-                  {/* Subtotal row */}
-                  <tfoot>
-                    <tr className="bg-slate-50 border-t-2 border-gray-200">
-                      <td className="px-4 py-3" />
-                      <td className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Subtotal
-                      </td>
-                      <td className="px-4 py-3" />
-                      <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
-                        {lineTotal.toLocaleString()}
-                      </td>
-                      <td colSpan={5} className="px-4 py-3" />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                {/* ── Desktop: full table ───────────────────────────────── */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-white border-b border-gray-100">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-8">#</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Item Code</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Qty</th>
+                        {hasBatches && (
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">Batches</th>
+                        )}
+                        {hasBatches && (
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">Breakdown</th>
+                        )}
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">UOM</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Planning Group</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Sequence</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Comments</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {rows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="px-4 py-3 text-xs text-gray-300">{idx + 1}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.product}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{row.itemCode}</td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 tabular-nums">{row.quantity.toLocaleString()}</td>
+                          {hasBatches && (
+                            <td className="px-4 py-3 text-right font-mono font-bold text-indigo-700 tabular-nums">{row.batches ?? 0}</td>
+                          )}
+                          {hasBatches && (
+                            <td className="px-4 py-3 font-mono text-xs text-indigo-600 whitespace-nowrap">{row.batchBreakdown ?? '—'}</td>
+                          )}
+                          <td className="px-4 py-3 text-gray-500">{row.uom}</td>
+                          <td className="px-4 py-3">
+                            {row.type && (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">{row.type}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{row.planningGroup}</td>
+                          <td className="px-4 py-3 text-center text-gray-500">{row.sequence}</td>
+                          <td className="px-4 py-3 text-gray-500 max-w-xs">{row.comments}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-50 border-t-2 border-gray-200">
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Subtotal</td>
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 tabular-nums">{lineTotal.toLocaleString()}</td>
+                        <td colSpan={hasBatches ? 7 : 5} className="px-4 py-3" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         );

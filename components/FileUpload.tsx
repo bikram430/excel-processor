@@ -98,7 +98,7 @@ export function FileUpload({ onData, onLoading, onError }: FileUploadProps) {
         onDrop={handleDrop}
         onClick={() => !selectedFile && fileInputRef.current?.click()}
         className={`
-          relative border-2 border-dashed rounded-xl p-10 text-center
+          relative border-2 border-dashed rounded-xl p-6 sm:p-10 text-center
           transition-all duration-200
           ${isDragging
             ? 'border-blue-500 bg-blue-50 scale-[1.01]'
