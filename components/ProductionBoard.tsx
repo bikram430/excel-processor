@@ -86,7 +86,7 @@ function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
     batches:           row.batches ?? 1,
     batchBreakdown:    row.batchBreakdown ?? `${row.quantity}×1`,
     time:              '',
-    allergens:         getProductAllergens(row.product),
+    allergens:         getProductAllergens(row.product, row.itemCode),
     physicalBatchSize: row.physicalBatchSize ?? Math.ceil(row.quantity / (row.batches ?? 1)),
   };
 }
