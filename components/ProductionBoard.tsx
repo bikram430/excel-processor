@@ -333,7 +333,7 @@ function SortableCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Transform.toString(transform), transition, touchAction: 'none' }}
       onPointerDown={() => setIsHolding(true)}
       onPointerUp={() => setIsHolding(false)}
       onPointerCancel={() => setIsHolding(false)}
