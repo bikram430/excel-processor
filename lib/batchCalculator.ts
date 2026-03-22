@@ -58,14 +58,32 @@ function cqcBatch(qty: number, spec: CQCSpec): BatchResult {
 }
 
 // ── Meat Sauce EPP (input 1900 → output 2000 per batch) ───────────────────
+// Ratio: 0.95 kg input = 1 kg output (1900 in / 2000 out).
+// Full batches use 1900 kg input each. Partial batches scale by 0.95.
 function meatSauceBatch(qty: number): BatchResult {
-  const inputPerBatch  = 1900;
-  const outputPerBatch = 2000;
-  const n = Math.ceil(qty / outputPerBatch);
+  const INPUT_PER_BATCH  = 1900;
+  const OUTPUT_PER_BATCH = 2000;
+  const RATIO            = INPUT_PER_BATCH / OUTPUT_PER_BATCH; // 0.95
+
+  const fullBatches  = Math.floor(qty / OUTPUT_PER_BATCH);
+  const remainingOut = qty % OUTPUT_PER_BATCH;
+  const hasPartial   = remainingOut > 0;
+  const totalBatches = fullBatches + (hasPartial ? 1 : 0);
+
+  let breakdown: string;
+  if (!hasPartial) {
+    breakdown = `${INPUT_PER_BATCH}×${fullBatches}`;
+  } else {
+    const partialInput = Math.ceil(remainingOut * RATIO);
+    breakdown = fullBatches === 0
+      ? `${partialInput}×1`
+      : `${INPUT_PER_BATCH}×${fullBatches} / ${partialInput}×1`;
+  }
+
   return {
-    batches: n,
-    batchBreakdown: `${inputPerBatch}×${n} (→${(n * outputPerBatch).toLocaleString()}kg out)`,
-    physicalBatchSize: inputPerBatch,
+    batches:           totalBatches,
+    batchBreakdown:    breakdown,
+    physicalBatchSize: INPUT_PER_BATCH,
   };
 }
 
