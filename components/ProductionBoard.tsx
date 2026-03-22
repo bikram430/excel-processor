@@ -25,7 +25,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { ExcelRow, BoardItem } from '@/types';
 import { getProductAllergens, suggestOrder, insertCleaningSteps } from '@/lib/allergenRules';
 
-// ── Line config (display order) ────────────────────────────────────────────
+// ── Line config ────────────────────────────────────────────────────────────
 const BOARD_LINES = [
   'KETTLE 1 SOUP',
   'KETTLE 2 DIRECT FILL',
@@ -42,7 +42,16 @@ const LINE_CAPS: Record<string, number> = {
   'BLENDTECH':            2000,
 };
 
-/** Abbreviated label for mobile "Move to" buttons */
+/** Label shown in each column header */
+const LINE_LABEL: Record<string, string> = {
+  'KETTLE 1 SOUP':        'Kettle (K1)',
+  'KETTLE 2 DIRECT FILL': 'Kettle (K2)',
+  'KETTLE 3 DIRECT FILL': 'Kettle (K3)',
+  'KETTLE 4 KAPCOLD':     'Kettle (K4)',
+  'BLENDTECH':            'Blentech',
+};
+
+/** Short label for Move-to buttons */
 const LINE_SHORT: Record<string, string> = {
   'KETTLE 1 SOUP':        'K1',
   'KETTLE 2 DIRECT FILL': 'K2',
@@ -62,15 +71,15 @@ const ALLERGEN_COLOURS: Record<string, string> = {
 // ── Helpers ────────────────────────────────────────────────────────────────
 function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
   return {
-    id:               `${row.line}-${row.itemCode || row.product}-${index}`,
-    type:             'product',
-    line:             row.line,
-    product:          row.product,
-    quantity:         row.quantity,
-    batches:          row.batches ?? 1,
-    batchBreakdown:   row.batchBreakdown ?? `${row.quantity}×1`,
-    time:             '',
-    allergens:        getProductAllergens(row.product),
+    id:                `${row.line}-${row.itemCode || row.product}-${index}`,
+    type:              'product',
+    line:              row.line,
+    product:           row.product,
+    quantity:          row.quantity,
+    batches:           row.batches ?? 1,
+    batchBreakdown:    row.batchBreakdown ?? `${row.quantity}×1`,
+    time:              '',
+    allergens:         getProductAllergens(row.product),
     physicalBatchSize: row.physicalBatchSize ?? Math.ceil(row.quantity / (row.batches ?? 1)),
   };
 }
@@ -95,18 +104,39 @@ function findItem(id: string, allItems: Record<string, BoardItem[]>): BoardItem 
   return null;
 }
 
-// ── Excel downloads ────────────────────────────────────────────────────────
-async function downloadLineSequence(line: string, items: BoardItem[]) {
-  await writeExcel({ [line]: items }, `sequence-${line.toLowerCase().replace(/\s+/g, '-')}.xlsx`);
+/**
+ * Parse "2000×2 / 1500×1" style batchBreakdown into individual sizes.
+ * Marks each size as full (R) if it equals the maximum in the list.
+ */
+function parseBatchSizes(
+  breakdown: string,
+  batches: number,
+  quantity: number,
+): { kg: number; full: boolean }[] {
+  // Strip meat-sauce output note e.g. "(→4000kg out)"
+  const cleaned = breakdown.replace(/\s*\(→[\d,]+kg out\)/g, '');
+  const matches  = [...cleaned.matchAll(/(\d+)×(\d+)/g)];
+
+  if (matches.length > 0) {
+    const sizes: { kg: number; full: boolean }[] = [];
+    const maxKg = Math.max(...matches.map(m => parseInt(m[1])));
+    for (const m of matches) {
+      const kg    = parseInt(m[1]);
+      const count = parseInt(m[2]);
+      for (let i = 0; i < count; i++) {
+        sizes.push({ kg, full: kg === maxKg });
+      }
+    }
+    return sizes;
+  }
+
+  // Fallback: uniform
+  const n        = Math.max(batches, 1);
+  const perBatch = Math.ceil(quantity / n);
+  return Array.from({ length: n }, () => ({ kg: perBatch, full: true }));
 }
 
-async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeLines: string[]) {
-  await writeExcel(
-    Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
-    'production-board.xlsx'
-  );
-}
-
+// ── Excel helpers ──────────────────────────────────────────────────────────
 async function writeExcel(lineMap: Record<string, BoardItem[]>, filename: string) {
   const XLSX = await import('xlsx');
   const wb   = XLSX.utils.book_new();
@@ -121,7 +151,7 @@ async function writeExcel(lineMap: Record<string, BoardItem[]>, filename: string
       'Start Time': item.time || '—',
       'Allergens':  item.allergens.join(', ') || 'None',
     }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), line);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), line.slice(0, 31));
   }
   const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
   const blob = new Blob([new Uint8Array(raw)], {
@@ -134,8 +164,19 @@ async function writeExcel(lineMap: Record<string, BoardItem[]>, filename: string
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-// ── Card content ───────────────────────────────────────────────────────────
-function CardContent({
+async function downloadLineSequence(line: string, items: BoardItem[]) {
+  await writeExcel({ [line]: items }, `sequence-${line.toLowerCase().replace(/\s+/g, '-')}.xlsx`);
+}
+
+async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeLines: string[]) {
+  await writeExcel(
+    Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
+    'production-board.xlsx',
+  );
+}
+
+// ── Product card (whiteboard style) ───────────────────────────────────────
+function ProductCard({
   item,
   position,
   onTimeChange,
@@ -150,84 +191,103 @@ function CardContent({
   activeLines?: string[];
   onMoveTo?: (id: string, targetLine: string) => void;
 }) {
+  const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
   const otherLines = activeLines.filter(l => l !== item.line);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden text-left">
 
-      {/* Main row */}
+      {/* ── Card body ── */}
       <div className="flex items-stretch">
+
         {/* Drag handle */}
         <div
           {...dragProps}
-          className="flex items-center px-3 bg-gray-50 border-r border-gray-200
-                     cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 select-none"
+          className="flex items-center justify-center w-5 flex-shrink-0 bg-gray-50
+                     border-r border-gray-200 cursor-grab active:cursor-grabbing
+                     text-gray-300 hover:text-gray-500 select-none"
         >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
             <path d="M7 2a2 2 0 11-4 0 2 2 0 014 0zM7 8a2 2 0 11-4 0 2 2 0 014 0zM7 14a2 2 0 11-4 0 2 2 0 014 0zM13 2a2 2 0 11-4 0 2 2 0 014 0zM13 8a2 2 0 11-4 0 2 2 0 014 0zM13 14a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         </div>
 
         {/* Position badge */}
-        <div className="flex items-center justify-center w-8 text-xs font-bold text-gray-400
-                        bg-gray-50 border-r border-gray-200 flex-shrink-0">
+        <div className="flex items-start justify-center w-5 flex-shrink-0 pt-2
+                        bg-gray-50 border-r border-gray-200 text-[9px] font-bold text-gray-300">
           {position || '·'}
         </div>
 
-        {/* Info */}
-        <div className="flex-1 px-3 sm:px-4 py-3 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm leading-snug">{item.product}</p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className="text-xs text-gray-500 font-mono">{item.quantity.toLocaleString()} kg</span>
-            <span className="text-xs text-indigo-700 font-mono font-semibold">
-              {item.batches} batch{item.batches !== 1 ? 'es' : ''}
-            </span>
-            <span className="hidden sm:inline text-xs text-indigo-400 font-mono">
-              [{item.batchBreakdown}]
-            </span>
+        {/* Content */}
+        <div className="flex-1 p-2 min-w-0">
+
+          {/* Product name */}
+          <p className="font-bold text-gray-900 text-xs leading-snug" title={item.product}>
+            {item.product}
+          </p>
+
+          {/* Total quantity */}
+          <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+            <span className="font-semibold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
+          </p>
+
+          {/* ── Individual batch sizes ── */}
+          <div className="mt-1.5 pt-1 border-t border-gray-100 space-y-0.5">
+            {batchSizes.map((b, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="text-[9px] text-gray-300 font-mono w-3 flex-shrink-0 text-right tabular-nums">
+                  {i + 1}
+                </span>
+                <span className={`text-[11px] font-mono font-bold tabular-nums ${
+                  b.full ? 'text-indigo-700' : 'text-indigo-400'
+                }`}>
+                  {b.kg.toLocaleString()} kg
+                </span>
+                {b.full && (
+                  <span className="text-[8px] text-indigo-500 font-bold bg-indigo-50 border
+                                   border-indigo-200 px-0.5 py-px rounded leading-none">
+                    R
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
+
+          {/* Allergen badges */}
           {item.allergens.length > 0 && (
             <div className="flex gap-1 mt-1.5 flex-wrap">
               {item.allergens.map(a => (
-                <span key={a}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${ALLERGEN_COLOURS[a] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                <span
+                  key={a}
+                  className={`px-1 py-px rounded text-[8px] font-bold border leading-none
+                              ${ALLERGEN_COLOURS[a] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                >
                   {a}
                 </span>
               ))}
             </div>
           )}
 
-          {/* ── Mobile: time input inline ── */}
+          {/* Start-time input */}
           {onTimeChange && (
-            <div className="sm:hidden mt-2 flex items-center gap-2">
-              <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
+            <div className="mt-1.5 flex items-center gap-1">
+              <span className="text-[9px] text-gray-400 flex-shrink-0">Start:</span>
               <input
-                type="time" value={item.time}
+                type="time"
+                value={item.time}
                 onChange={e => onTimeChange(item.id, e.target.value)}
-                className="flex-1 text-xs font-mono text-gray-700 border border-gray-200 rounded
-                           px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="flex-1 min-w-0 text-[10px] font-mono text-gray-700 border border-gray-200
+                           rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
               />
             </div>
           )}
         </div>
-
-        {/* ── Desktop: time input on right ── */}
-        {onTimeChange && (
-          <div className="hidden sm:flex items-center px-3 border-l border-gray-100">
-            <input
-              type="time" value={item.time}
-              onChange={e => onTimeChange(item.id, e.target.value)}
-              className="text-xs font-mono text-gray-700 border border-gray-200 rounded
-                         px-1.5 py-1 w-24 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-          </div>
-        )}
       </div>
 
-      {/* ── "Move to" buttons (all screen sizes) ── */}
+      {/* ── Move-to buttons ── */}
       {onMoveTo && otherLines.length > 0 && (
-        <div className="px-3 pb-3 pt-1 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] text-gray-400 font-medium">Move to:</span>
+        <div className="px-2 pb-2 pt-1 border-t border-gray-100 flex items-center gap-1 flex-wrap">
+          <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">Move→</span>
           {otherLines.map(targetLine => {
             const compat = isCompatible(item, targetLine);
             const cap    = LINE_CAPS[targetLine];
@@ -236,15 +296,18 @@ function CardContent({
                 key={targetLine}
                 onClick={() => compat && onMoveTo(item.id, targetLine)}
                 disabled={!compat}
-                title={!compat ? `${targetLine} max ${cap?.toLocaleString()} kg/batch` : targetLine}
-                className={`text-[10px] px-2.5 py-1 rounded-md border font-semibold transition-colors ${
+                title={
+                  !compat
+                    ? `${targetLine}: max ${cap?.toLocaleString()} kg/batch — incompatible`
+                    : `Move to ${targetLine}`
+                }
+                className={`text-[9px] px-1.5 py-0.5 rounded border font-bold transition-colors ${
                   compat
-                    ? 'border-blue-200 text-blue-700 bg-blue-50 active:bg-blue-100'
-                    : 'border-red-200 text-red-400 bg-red-50 opacity-60 cursor-not-allowed'
+                    ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95'
+                    : 'border-red-200 text-red-400 bg-red-50 cursor-not-allowed opacity-60'
                 }`}
               >
-                {LINE_SHORT[targetLine] ?? targetLine}
-                {!compat && ' ✕'}
+                {LINE_SHORT[targetLine]}{!compat && ' ✕'}
               </button>
             );
           })}
@@ -254,7 +317,7 @@ function CardContent({
   );
 }
 
-// ── Sortable card ──────────────────────────────────────────────────────────
+// ── Sortable card wrapper ──────────────────────────────────────────────────
 function SortableCard({
   item,
   position,
@@ -268,14 +331,15 @@ function SortableCard({
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.25 : 1 }}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.2 : 1 }}
     >
-      <CardContent
+      <ProductCard
         item={item}
         position={position}
         onTimeChange={onTimeChange}
@@ -290,19 +354,19 @@ function SortableCard({
 // ── Cleaning step banner ───────────────────────────────────────────────────
 function CleaningStep() {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200
-                    rounded-lg text-amber-700 text-xs font-semibold pointer-events-none">
-      <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 border border-amber-200
+                    rounded-lg text-amber-700 text-[10px] font-semibold pointer-events-none">
+      <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
           d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      Cleaning / CIP required before next product
+      CIP / Cleaning
     </div>
   );
 }
 
-// ── Line section ───────────────────────────────────────────────────────────
-function LineSection({
+// ── Whiteboard column ──────────────────────────────────────────────────────
+function LineColumn({
   line,
   items,
   onTimeChange,
@@ -323,6 +387,8 @@ function LineSection({
   const cap        = LINE_CAPS[line];
   const totalKg    = items.reduce((s, i) => s + i.quantity, 0);
   const totalBatch = items.reduce((s, i) => s + i.batches, 0);
+  const highlighted = isDropTarget && !blockedItem;
+  const blocked     = !!blockedItem;
 
   const displayItems = insertCleaningSteps(items);
   const positions: Record<string, number> = {};
@@ -331,39 +397,49 @@ function LineSection({
     if (e.type !== 'cleaning') positions[e.id] = ++pos;
   }
 
-  const highlighted = isDropTarget && !blockedItem;
-  const blocked     = !!blockedItem;
-
   return (
-    <div className={`rounded-xl border-2 transition-colors duration-150 ${
-      blocked     ? 'border-red-400 bg-red-50/40' :
-      highlighted ? 'border-blue-400 bg-blue-50/20' :
-                    'border-gray-200 bg-white'
+    <div className={`flex-1 min-w-[150px] flex flex-col transition-colors ${
+      blocked ? 'bg-red-50/60' : highlighted ? 'bg-blue-50/20' : 'bg-white'
     }`}>
 
-      {/* Header */}
-      <div className="px-3 sm:px-4 py-3 border-b border-gray-100 flex items-start justify-between flex-wrap gap-2">
-        <div className="flex flex-col gap-0.5 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-gray-900 text-sm">{line}</span>
-            {cap && (
-              <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
-                max {cap.toLocaleString()} kg/batch
-              </span>
-            )}
-          </div>
-          <span className="text-xs text-gray-400">
-            {items.length} product{items.length !== 1 ? 's' : ''} · {totalBatch} batch{totalBatch !== 1 ? 'es' : ''} · {totalKg.toLocaleString()} kg
-          </span>
+      {/* ── Column header ── */}
+      <div className={`px-2.5 py-2 border-b-2 ${
+        blocked     ? 'bg-red-700   border-red-900'  :
+        highlighted ? 'bg-blue-700  border-blue-900' :
+                      'bg-slate-800 border-slate-900'
+      }`}>
+        {/* Title */}
+        <p className="font-bold text-white text-sm leading-tight">
+          {LINE_LABEL[line] ?? line}
+        </p>
+        {cap && (
+          <p className="text-[10px] text-slate-300 font-mono mt-0.5">
+            max {cap.toLocaleString()} kg/batch
+          </p>
+        )}
+        {/* Stats */}
+        <div className="mt-1.5 space-y-px">
+          <p className="text-[10px] text-slate-300">
+            {items.length} product{items.length !== 1 ? 's' : ''} · {totalBatch} batch{totalBatch !== 1 ? 'es' : ''}
+          </p>
+          <p className="text-xs font-mono font-bold text-white tabular-nums">
+            {totalKg.toLocaleString()} kg
+          </p>
         </div>
-
+        {/* Incompatibility warning */}
+        {blocked && blockedItem && (
+          <p className="mt-1 text-[10px] text-red-100 font-semibold leading-snug">
+            ✕ Needs {blockedItem.physicalBatchSize.toLocaleString()} kg/batch
+          </p>
+        )}
+        {/* Per-line download */}
         <button
           onClick={() => downloadLineSequence(line, items)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
-                     text-green-700 bg-green-50 border border-green-200 rounded-lg
-                     hover:bg-green-100 transition-colors flex-shrink-0"
+          className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px]
+                     font-semibold text-slate-300 bg-white/10 border border-white/20 rounded
+                     hover:bg-white/20 transition-colors"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
@@ -371,23 +447,13 @@ function LineSection({
         </button>
       </div>
 
-      {/* Incompatibility warning */}
-      {blocked && blockedItem && (
-        <div className="mx-3 mt-3 flex items-start gap-2 px-3 py-2 bg-red-100 border border-red-300
-                        rounded-lg text-red-800 text-xs font-semibold">
-          <svg className="w-4 h-4 flex-shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>
-            Kettle incompatible — {line} max {cap?.toLocaleString()} kg/batch ·{' '}
-            {blockedItem.product} needs {blockedItem.physicalBatchSize.toLocaleString()} kg/batch
-          </span>
-        </div>
-      )}
-
-      {/* Items */}
-      <div ref={setNodeRef} className={`p-3 space-y-2 min-h-[64px] transition-colors ${isOver && !blocked ? 'bg-blue-50/30' : ''}`}>
+      {/* ── Products ── */}
+      <div
+        ref={setNodeRef}
+        className={`flex-1 p-2 space-y-2 min-h-[80px] transition-colors ${
+          isOver && !blocked ? 'bg-blue-50/40' : ''
+        }`}
+      >
         <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
           {displayItems.map(entry => {
             if (entry.type === 'cleaning') return <CleaningStep key={entry.id} />;
@@ -404,12 +470,20 @@ function LineSection({
             );
           })}
           {items.length === 0 && (
-            <div className="flex items-center justify-center h-14 text-gray-300 text-sm
+            <div className="flex items-center justify-center h-14 text-[10px] text-gray-300
                             border-2 border-dashed border-gray-200 rounded-lg">
-              Drop items here
+              Drop here
             </div>
           )}
         </SortableContext>
+      </div>
+
+      {/* ── Column subtotal ── */}
+      <div className="border-t-2 border-gray-200 bg-slate-50 px-2.5 py-2">
+        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Subtotal</p>
+        <p className="text-sm font-mono font-bold text-gray-900 tabular-nums">
+          {totalKg.toLocaleString()} kg
+        </p>
       </div>
     </div>
   );
@@ -436,33 +510,32 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [activeId,    setActiveId]    = useState<string | null>(null);
   const [overLine,    setOverLine]    = useState<string | null>(null);
   const [blockedLine, setBlockedLine] = useState<string | null>(null);
-  const snapshot    = useRef<Record<string, BoardItem[]> | null>(null);
-  const lastOverRef = useRef<string | null>(null);
+  const snapshot     = useRef<Record<string, BoardItem[]> | null>(null);
+  const lastOverRef  = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  // ── Mobile "Move to" ───────────────────────────────────────────────────
+  // ── Move-to (button) ────────────────────────────────────────────────────
   function moveItem(itemId: string, targetLine: string) {
-    const currentContainer = findContainer(itemId, allItems);
-    if (!currentContainer || currentContainer === targetLine) return;
+    const src = findContainer(itemId, allItems);
+    if (!src || src === targetLine) return;
     const item = findItem(itemId, allItems);
     if (!item || !isCompatible(item, targetLine)) return;
-
     setAllItems(prev => {
-      const src  = [...prev[currentContainer]];
-      const dest = [...(prev[targetLine] ?? [])];
-      const idx  = src.findIndex(i => i.id === itemId);
+      const srcArr  = [...prev[src]];
+      const destArr = [...(prev[targetLine] ?? [])];
+      const idx     = srcArr.findIndex(i => i.id === itemId);
       if (idx === -1) return prev;
-      const [moved] = src.splice(idx, 1);
-      dest.push(moved);
-      return { ...prev, [currentContainer]: src, [targetLine]: dest };
+      const [moved] = srcArr.splice(idx, 1);
+      destArr.push({ ...moved, line: targetLine });
+      return { ...prev, [src]: srcArr, [targetLine]: destArr };
     });
   }
 
-  // ── Time change ────────────────────────────────────────────────────────
+  // ── Time change ─────────────────────────────────────────────────────────
   function handleTimeChange(id: string, time: string) {
     setAllItems(prev => {
       const next = { ...prev };
@@ -476,17 +549,17 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     });
   }
 
-  // ── Drag handlers ──────────────────────────────────────────────────────
+  // ── Drag handlers ────────────────────────────────────────────────────────
   function handleDragStart({ active }: DragStartEvent) {
     setActiveId(String(active.id));
-    snapshot.current   = JSON.parse(JSON.stringify(allItems));
+    snapshot.current    = JSON.parse(JSON.stringify(allItems));
     lastOverRef.current = null;
   }
 
   function handleDragOver({ active, over }: DragOverEvent) {
     if (!over || !activeId) return;
-    const activeIdStr    = String(active.id);
-    const overId         = String(over.id);
+    const activeIdStr      = String(active.id);
+    const overId           = String(over.id);
     const currentContainer = findContainer(activeIdStr, allItems);
     const overContainer    = findContainer(overId, allItems) ?? overId;
     setOverLine(overContainer);
@@ -570,10 +643,11 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      {/* ── Top toolbar ─────────────────────────────────────────────────── */}
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <p className="text-xs text-gray-400 flex-1">
-          Drag handle to reorder within a line · Use <strong>Move to</strong> buttons to transfer between lines · Red = incompatible
+          Drag grip to reorder within a line · <strong>Move→</strong> buttons to transfer between lines ·
+          Red column = incompatible
         </p>
         <button
           onClick={() => downloadWholeBoard(allItems, activeLines)}
@@ -589,33 +663,34 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
         </button>
       </div>
 
-      {/* ── Line sections ────────────────────────────────────────────────── */}
-      <div className="space-y-4">
-        {activeLines.map(line => {
-          const items    = allItems[line] ?? [];
-          const isTarget = overLine === line && activeId !== null;
-          const blocked  = blockedLine === line ? (activeItem ?? null) : null;
-
-          return (
-            <LineSection
-              key={line}
-              line={line}
-              items={items}
-              onTimeChange={handleTimeChange}
-              isDropTarget={isTarget}
-              blockedItem={blocked}
-              activeLines={activeLines}
-              onMoveTo={moveItem}
-            />
-          );
-        })}
+      {/* ── Whiteboard columns ───────────────────────────────────────────── */}
+      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+        <div className="flex divide-x divide-gray-200 min-w-[600px]">
+          {activeLines.map(line => {
+            const items    = allItems[line] ?? [];
+            const isTarget = overLine === line && activeId !== null;
+            const blocked  = blockedLine === line ? (activeItem ?? null) : null;
+            return (
+              <LineColumn
+                key={line}
+                line={line}
+                items={items}
+                onTimeChange={handleTimeChange}
+                isDropTarget={isTarget}
+                blockedItem={blocked}
+                activeLines={activeLines}
+                onMoveTo={moveItem}
+              />
+            );
+          })}
+        </div>
       </div>
 
-      {/* Ghost card during desktop drag */}
+      {/* Ghost during drag */}
       <DragOverlay dropAnimation={null}>
         {activeItem && (
-          <div className="rotate-1 opacity-95 shadow-2xl">
-            <CardContent item={activeItem} position={0} />
+          <div className="rotate-1 opacity-90 shadow-2xl w-44">
+            <ProductCard item={activeItem} position={0} />
           </div>
         )}
       </DragOverlay>
