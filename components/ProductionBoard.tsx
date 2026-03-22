@@ -24,6 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ExcelRow, BoardItem } from '@/types';
 import { getProductAllergens, suggestOrder, insertCleaningSteps } from '@/lib/allergenRules';
+import { downloadStyledExcel } from '@/lib/excelExport';
 
 // ── Line config ────────────────────────────────────────────────────────────
 const BOARD_LINES = [
@@ -136,41 +137,19 @@ function parseBatchSizes(
   return Array.from({ length: n }, () => ({ kg: perBatch, full: true }));
 }
 
-// ── Excel helpers ──────────────────────────────────────────────────────────
-async function writeExcel(lineMap: Record<string, BoardItem[]>, filename: string) {
-  const XLSX = await import('xlsx');
-  const wb   = XLSX.utils.book_new();
-  for (const [line, items] of Object.entries(lineMap)) {
-    if (!items.length) continue;
-    const rows = items.map((item, i) => ({
-      'Position':   i + 1,
-      'Product':    item.product,
-      'Qty (kg)':   item.quantity,
-      'Batches':    item.batches,
-      'Breakdown':  item.batchBreakdown,
-      'Start Time': item.time || '—',
-      'Allergens':  item.allergens.join(', ') || 'None',
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), line.slice(0, 31));
-  }
-  const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
-  const blob = new Blob([new Uint8Array(raw)], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
+// ── Excel downloads (delegate to styled exporter) ─────────────────────────
 async function downloadLineSequence(line: string, items: BoardItem[]) {
-  await writeExcel({ [line]: items }, `sequence-${line.toLowerCase().replace(/\s+/g, '-')}.xlsx`);
+  await downloadStyledExcel(
+    { [line]: items },
+    [line],
+    `sequence-${line.toLowerCase().replace(/\s+/g, '-')}.xlsx`,
+  );
 }
 
 async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeLines: string[]) {
-  await writeExcel(
+  await downloadStyledExcel(
     Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
+    activeLines,
     'production-board.xlsx',
   );
 }
