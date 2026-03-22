@@ -329,7 +329,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const merges: any[] = [];
 
-  const DC = 4;  // data cols per line: # | Product | Total kg | Batches (*N format)
+  const DC = 5;  // data cols per line: # | Product | Total kg | * Batches | Start
   const SC = 1;  // spacer col between lines
   const totalSpan = activeLines.length * (DC + SC) - SC;
 
@@ -352,7 +352,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
     | { k: 'hdr' }
     | { k: 'stat'; prods: number; batches: number; totalKg: number }
     | { k: 'subhdr' }
-    | { k: 'prod'; pos: number; name: string; totalKg: number; sizes: { kg: number }[]; allergens: string[] }
+    | { k: 'prod'; pos: number; name: string; totalKg: number; sizes: { kg: number }[]; allergens: string[]; time: string }
     | { k: 'clean' }
     | { k: 'sub'; totalKg: number }
     | { k: 'empty' };
@@ -369,7 +369,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
       if (entry.type === 'cleaning') { rows.push({ k: 'clean' }); continue; }
       const item = entry as BoardItem;
       pos++;
-      rows.push({ k: 'prod', pos, name: item.product, totalKg: item.quantity, sizes: parseBatchSizes(item.batchBreakdown, item.batches, item.quantity), allergens: item.allergens });
+      rows.push({ k: 'prod', pos, name: item.product, totalKg: item.quantity, sizes: parseBatchSizes(item.batchBreakdown, item.batches, item.quantity), allergens: item.allergens, time: item.time });
     }
     rows.push({ k: 'sub', totalKg: items.reduce((s, i) => s + i.quantity, 0) });
     return rows;
@@ -403,9 +403,10 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
         ws[enc(r, c0 + 1)] = mkCell('', { fill: bg, border: border('CBD5E1') });
         ws[enc(r, c0 + 2)] = mkCell(row.totalKg, { font: { bold: true, sz: 10, color: { rgb: C.SLATE_800 }, name: 'Calibri' }, fill: bg, alignment: { horizontal: 'right', vertical: 'center' }, border: border('CBD5E1'), numFmt: '#,##0' });
         ws[enc(r, c0 + 3)] = mkCell('kg', { font: { sz: 9, color: { rgb: C.SLATE_600 }, name: 'Calibri' }, fill: bg, alignment: { horizontal: 'left', vertical: 'center' }, border: border('CBD5E1') });
+        ws[enc(r, c0 + 4)] = mkCell('', { fill: bg, border: border('CBD5E1') });
 
       } else if (row.k === 'subhdr') {
-        ['#', 'Product', 'Total kg', '* Batches'].forEach((h, dc) => {
+        ['#', 'Product', 'Total kg', '* Batches', 'Start'].forEach((h, dc) => {
           ws[enc(r, c0 + dc)] = mkCell(h, sSubHeader());
         });
 
@@ -423,6 +424,12 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
           alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
           border:    border('E5E7EB'),
         });
+        ws[enc(r, c0 + 4)] = mkCell(row.time || '—', {
+          font:      { color: { rgb: C.GRAY_700 }, sz: 9, name: 'Calibri' },
+          fill:      { patternType: 'solid', fgColor: { rgb: shade ? C.GRAY_50 : C.WHITE } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border:    border('E5E7EB'),
+        });
 
       } else if (row.k === 'clean') {
         ws[enc(r, c0)] = mkCell('⚠  CIP / Cleaning', sCleaning());
@@ -434,6 +441,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
         ws[enc(r, c0 + 1)] = mkCell('', { fill: { patternType: 'solid', fgColor: { rgb: C.GREEN_100 } }, border: border('86EFAC', 'medium') });
         ws[enc(r, c0 + 2)] = mkCell(row.totalKg, sSubtotalValue());
         ws[enc(r, c0 + 3)] = mkCell('kg', { font: { bold: true, color: { rgb: C.GREEN_800 }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: C.GREEN_100 } }, border: border('86EFAC', 'medium'), alignment: { horizontal: 'left', vertical: 'center' } });
+        ws[enc(r, c0 + 4)] = mkCell('', { fill: { patternType: 'solid', fgColor: { rgb: C.GREEN_100 } }, border: border('86EFAC', 'medium') });
 
       } else { // empty
         for (let dc = 0; dc < DC; dc++) ws[enc(r, c0 + dc)] = mkCell('', { fill: { patternType: 'solid', fgColor: { rgb: 'FAFAFA' } }, border: border('F3F4F6') });
@@ -453,7 +461,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
 
   const colWidths: { wch: number }[] = [];
   for (let li = 0; li < activeLines.length; li++) {
-    colWidths.push({ wch: 5 }, { wch: 22 }, { wch: 10 }, { wch: 24 });
+    colWidths.push({ wch: 5 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 10 });
     if (li < activeLines.length - 1) colWidths.push({ wch: 2 });
   }
   ws['!cols'] = colWidths;

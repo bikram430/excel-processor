@@ -136,12 +136,6 @@ function allergenKey(item: BoardItem): string {
 }
 
 // ── Excel downloads ────────────────────────────────────────────────────────
-async function downloadLineSequence(line: string, items: BoardItem[]) {
-  await downloadStyledExcel(
-    { [line]: items }, [line],
-    `sequence-${line.toLowerCase().replace(/\s+/g, '-')}.xlsx`,
-  );
-}
 async function downloadWholeBoard(allItems: Record<string, BoardItem[]>, activeLines: string[]) {
   await downloadStyledExcel(
     Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
@@ -447,25 +441,6 @@ function LineColumn({
             ✕ Incompatible — needs {blockedItem.physicalBatchSize.toLocaleString()} kg/batch
           </p>
         )}
-        <button
-          onClick={() => downloadLineSequence(line, items)}
-          className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5
-                     text-[11px] font-semibold text-slate-300 bg-white/10 border border-white/20
-                     rounded-lg hover:bg-white/20 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Download
-        </button>
-      </div>
-
-      {/* ── Drag hint ── */}
-      <div className="px-3 py-1.5 bg-slate-700 text-center">
-        <p className="text-[9px] text-slate-400 font-medium tracking-wide">
-          HOLD &amp; DRAG TO REORDER
-        </p>
       </div>
 
       {/* ── Products ── */}
