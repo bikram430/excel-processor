@@ -31,6 +31,7 @@ import {
   ALLERGEN_OPTIONS,
 } from '@/lib/allergenRules';
 import { downloadStyledExcel } from '@/lib/excelExport';
+import { smartAssignKettles, getPreferredKettles } from '@/lib/kettlePreferences';
 
 // ── Line config ────────────────────────────────────────────────────────────
 const BOARD_LINES = [
@@ -215,6 +216,21 @@ function ProductCard({
             <p className="font-bold text-gray-900 text-sm leading-snug" title={item.product}>
               {item.product}
             </p>
+            {(() => {
+              const preferred = getPreferredKettles(item.product, '');
+              if (preferred.length === 0) return null;
+              const shorts     = preferred.map(k => LINE_SHORT[k] ?? k).join('/');
+              const onPreferred = preferred.includes(item.line);
+              return (
+                <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${
+                  onPreferred
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {onPreferred ? '✓' : '→'} {shorts}
+                </span>
+              );
+            })()}
             <p className="text-[11px] text-gray-500 font-mono mt-0.5">
               <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
             </p>
@@ -499,17 +515,19 @@ function LineColumn({
 interface ProductionBoardProps { data: ExcelRow[]; }
 
 export function ProductionBoard({ data }: ProductionBoardProps) {
-  const boardRows   = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
-  const activeLines = BOARD_LINES.filter(line => boardRows.some(r => r.line === line));
+  const boardRows = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
 
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
-    for (const line of activeLines) {
+    for (const line of BOARD_LINES) {
       const rows = boardRows.filter(r => r.line === line);
       result[line] = suggestOrder(rows.map((r, i) => rowToBoardItem(r, i)));
     }
     return result;
   });
+
+  // Derived from live state so it updates after smart assign
+  const activeLines = BOARD_LINES.filter(line => (allItems[line]?.length ?? 0) > 0);
 
   const [activeId,    setActiveId]    = useState<string | null>(null);
   const [overLine,    setOverLine]    = useState<string | null>(null);
@@ -654,6 +672,18 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     snapshot.current = null; lastOverRef.current = null;
   }
 
+  function handleSmartAssign() {
+    const assigned = smartAssignKettles(boardRows);
+    setAllItems(() => {
+      const next: Record<string, BoardItem[]> = {};
+      for (const line of BOARD_LINES) {
+        const rows = assigned[line] ?? [];
+        next[line] = suggestOrder(rows.map((r, i) => rowToBoardItem(r, i)));
+      }
+      return next;
+    });
+  }
+
   const activeItem = activeId ? findItem(activeId, allItems) : null;
 
   if (activeLines.length === 0) {
@@ -680,6 +710,18 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
           <strong> Move→</strong> buttons to transfer between lines ·
           swipe horizontally to see all kettles
         </p>
+        <button
+          onClick={handleSmartAssign}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
+                     text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 active:scale-95
+                     transition-all shadow-sm w-full sm:w-auto"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+          </svg>
+          Smart Assign Kettles
+        </button>
         <button
           onClick={() => downloadWholeBoard(allItems, activeLines)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
