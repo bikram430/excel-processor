@@ -26,84 +26,58 @@ const CQC_PRODUCTS: Record<string, CQCSpec> = {
   'WPFEBCP1000':  { maxBatchSize: 88,  cyclesPerRecipe: 6 },
   'WPARIC10000':  { maxBatchSize: 40,  cyclesPerRecipe: 6 },
   'WCBCOMX1000':  { maxBatchSize: 40,  cyclesPerRecipe: 6 },
-  'WSNVCA10000':  { maxBatchSize: 50,  cyclesPerRecipe: 6 }, // null cyclesPerRecipe → default 6
+  'WSNVCA10000':  { maxBatchSize: 50,  cyclesPerRecipe: 6 },
   'WRVVMM10000':  { maxBatchSize: 50,  cyclesPerRecipe: 6 },
   'WWBGBC10000':  { maxBatchSize: 40,  cyclesPerRecipe: 6 },
   'WBGPDM10000':  { maxBatchSize: 39,  cyclesPerRecipe: 8 },
 };
 
-// ── Special item codes ─────────────────────────────────────────────────────
-const MEAT_SAUCE_EPP_CODE  = 'WMTSCP10000';
-const BUTTER_CHICKEN_CODE  = 'WBSCCP1000';
-const BECHAMEL_CODE        = 'WBLSCCP10000';
-
-// Low-capacity product name fragments (general kettle lines)
+const MEAT_SAUCE_EPP_CODE = 'WMTSCP10000';
+const BUTTER_CHICKEN_CODE = 'WBSCCP1000';
+const BECHAMEL_CODE       = 'WBLSCCP10000';
 const LOW_CAPACITY_PRODUCTS = ['VEGAN LASAGNE', 'MINESTRONE SOUP'];
-
 const DEFAULT_CAP = 2000;
 
 export interface BatchResult {
-  batches: number;           // number of recipes required (Batch Numbers)
+  batches: number;
   batchBreakdown: string;
+  /** Max kg loaded into the kettle/equipment for a single physical batch or cycle */
+  physicalBatchSize: number;
 }
 
-// ── CQC batch logic ────────────────────────────────────────────────────────
-/**
- * CQC products have fixed maxBatchSize and a cyclesPerRecipe limit.
- *   requiredCycles = ⌈qty / maxBatchSize⌉
- *   Batch Numbers  = ⌈requiredCycles / cyclesPerRecipe⌉
- */
+// ── CQC ───────────────────────────────────────────────────────────────────
 function cqcBatch(qty: number, spec: CQCSpec): BatchResult {
   const { maxBatchSize, cyclesPerRecipe } = spec;
-  const requiredCycles  = Math.ceil(qty / maxBatchSize);
-  const recipesNeeded   = Math.ceil(requiredCycles / cyclesPerRecipe);
-
-  // Distribute cycles evenly so we can show a meaningful breakdown
-  const totalCapacity   = recipesNeeded * cyclesPerRecipe * maxBatchSize;
-  const perCycleQty     = maxBatchSize; // always run at max per cycle
-
+  const requiredCycles = Math.ceil(qty / maxBatchSize);
+  const recipesNeeded  = Math.ceil(requiredCycles / cyclesPerRecipe);
   const breakdown =
     recipesNeeded === 1
-      ? `${recipesNeeded} recipe × ${requiredCycles} cycle${requiredCycles !== 1 ? 's' : ''} × ${perCycleQty}kg`
-      : `${recipesNeeded} recipes × up to ${cyclesPerRecipe} cycles × ${perCycleQty}kg`;
-
-  void totalCapacity; // suppress unused
-  return { batches: recipesNeeded, batchBreakdown: breakdown };
+      ? `${recipesNeeded} recipe × ${requiredCycles} cycle${requiredCycles !== 1 ? 's' : ''} × ${maxBatchSize}kg`
+      : `${recipesNeeded} recipes × up to ${cyclesPerRecipe} cycles × ${maxBatchSize}kg`;
+  return { batches: recipesNeeded, batchBreakdown: breakdown, physicalBatchSize: maxBatchSize };
 }
 
-// ── Meat Sauce EPP logic ───────────────────────────────────────────────────
-/**
- * Input per batch = 1900 kg → Output per batch = 2000 kg.
- * To achieve required output: batches = ⌈qty / 2000⌉
- */
+// ── Meat Sauce EPP (input 1900 → output 2000 per batch) ───────────────────
 function meatSauceBatch(qty: number): BatchResult {
-  const outputPerBatch = 2000;
   const inputPerBatch  = 1900;
+  const outputPerBatch = 2000;
   const n = Math.ceil(qty / outputPerBatch);
   return {
     batches: n,
     batchBreakdown: `${inputPerBatch}×${n} (→${(n * outputPerBatch).toLocaleString()}kg out)`,
+    physicalBatchSize: inputPerBatch,
   };
 }
 
-// ── General batch logic ────────────────────────────────────────────────────
-/**
- *  qty ≤ cap            → 1 batch:         "qty×1"
- *  cap < qty < cap×2    → 2 half-batches:  "⌈qty/2⌉×2"
- *  qty ≥ cap×2          → full batches until remainder fits in <cap×2,
- *                          then split remainder into 2 half-batches
- *  e.g. qty=5000,cap=2000 → 2000×1 / 1500×2   (3 batches total)
- *       qty=7000,cap=2000 → 2000×2 / 1500×2   (4 batches total)
- */
+// ── General batch (configurable cap) ──────────────────────────────────────
 function generalBatch(qty: number, cap: number): BatchResult {
   if (qty <= cap) {
-    return { batches: 1, batchBreakdown: `${qty}×1` };
+    return { batches: 1, batchBreakdown: `${qty}×1`, physicalBatchSize: qty };
   }
   if (qty < cap * 2) {
     const half = Math.ceil(qty / 2);
-    return { batches: 2, batchBreakdown: `${half}×2` };
+    return { batches: 2, batchBreakdown: `${half}×2`, physicalBatchSize: half };
   }
-
   let remaining   = qty;
   let fullBatches = 0;
   while (remaining >= cap * 2) {
@@ -112,67 +86,49 @@ function generalBatch(qty: number, cap: number): BatchResult {
   }
   const half         = Math.ceil(remaining / 2);
   const totalBatches = fullBatches + 2;
-  const breakdown    = fullBatches > 0
-    ? `${cap}×${fullBatches} / ${half}×2`
-    : `${half}×2`;
-  return { batches: totalBatches, batchBreakdown: breakdown };
+  const breakdown    = fullBatches > 0 ? `${cap}×${fullBatches} / ${half}×2` : `${half}×2`;
+  // The full-size batches are `cap` kg each — that is the physical max
+  return { batches: totalBatches, batchBreakdown: breakdown, physicalBatchSize: cap };
 }
 
-// ── Low-capacity batch logic ───────────────────────────────────────────────
+// ── Low-capacity (Vegan Lasagne, Minestrone Soup) ─────────────────────────
 function lowCapBatch(qty: number): BatchResult {
-  const n       = Math.ceil(qty / 1000);
+  const n        = Math.ceil(qty / 1000);
   const perBatch = Math.ceil(qty / n);
-  return { batches: n, batchBreakdown: `${perBatch}×${n}` };
+  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
-
 export function calculateBatch(
   product: string,
   itemCode: string,
   qty: number,
   butterChickenCap = DEFAULT_CAP
 ): BatchResult {
-  if (qty <= 0) return { batches: 0, batchBreakdown: '—' };
+  if (qty <= 0) return { batches: 0, batchBreakdown: '—', physicalBatchSize: 0 };
 
   const codeUpper    = itemCode.toUpperCase().trim();
   const productUpper = product.toUpperCase();
 
-  // ── CQC products (by item code) ──────────────────────────────────────
   const cqcSpec = CQC_PRODUCTS[codeUpper];
-  if (cqcSpec) return cqcBatch(qty, cqcSpec);
+  if (cqcSpec)                                              return cqcBatch(qty, cqcSpec);
+  if (codeUpper === MEAT_SAUCE_EPP_CODE)                    return meatSauceBatch(qty);
+  if (codeUpper === BECHAMEL_CODE)                          return generalBatch(qty, 1880);
+  if (codeUpper === BUTTER_CHICKEN_CODE)                    return generalBatch(qty, butterChickenCap);
+  if (LOW_CAPACITY_PRODUCTS.some(p => productUpper.includes(p))) return lowCapBatch(qty);
 
-  // ── Meat Sauce EPP ───────────────────────────────────────────────────
-  if (codeUpper === MEAT_SAUCE_EPP_CODE) return meatSauceBatch(qty);
-
-  // ── Bechamel Sauce (EB) ──────────────────────────────────────────────
-  if (codeUpper === BECHAMEL_CODE) return generalBatch(qty, 1880);
-
-  // ── Butter Chicken ───────────────────────────────────────────────────
-  if (codeUpper === BUTTER_CHICKEN_CODE) return generalBatch(qty, butterChickenCap);
-
-  // ── Low-capacity products ────────────────────────────────────────────
-  if (LOW_CAPACITY_PRODUCTS.some((p) => productUpper.includes(p))) return lowCapBatch(qty);
-
-  // ── General rule (cap 2000) ──────────────────────────────────────────
   return generalBatch(qty, DEFAULT_CAP);
 }
 
 export function hasButterChicken(rows: ExcelRow[]): boolean {
-  return rows.some((r) => r.itemCode.toUpperCase().trim() === BUTTER_CHICKEN_CODE);
+  return rows.some(r => r.itemCode.toUpperCase().trim() === BUTTER_CHICKEN_CODE);
 }
 
-export function calculateBatches(
-  rows: ExcelRow[],
-  butterChickenCap = DEFAULT_CAP
-): ExcelRow[] {
-  return rows.map((r) => {
-    const { batches, batchBreakdown } = calculateBatch(
-      r.product,
-      r.itemCode,
-      r.quantity,
-      butterChickenCap
+export function calculateBatches(rows: ExcelRow[], butterChickenCap = DEFAULT_CAP): ExcelRow[] {
+  return rows.map(r => {
+    const { batches, batchBreakdown, physicalBatchSize } = calculateBatch(
+      r.product, r.itemCode, r.quantity, butterChickenCap
     );
-    return { ...r, batches, batchBreakdown };
+    return { ...r, batches, batchBreakdown, physicalBatchSize };
   });
 }

@@ -12,6 +12,7 @@ export interface ExcelRow {
   // Enriched by client-side batch calculator (optional — absent before enrichment)
   batches?: number;
   batchBreakdown?: string;
+  physicalBatchSize?: number; // max kg in a single physical batch/cycle (for compatibility checks)
 }
 
 /** One item on the Production Board */
@@ -25,6 +26,7 @@ export interface BoardItem {
   batchBreakdown: string;
   time: string;           // editable HH:MM string
   allergens: string[];
+  physicalBatchSize: number; // max kg in a single physical batch (for line compatibility)
 }
 
 /** Per-line aggregated statistics */
