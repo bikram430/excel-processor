@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { FileUpload } from '@/components/FileUpload';
-import { DataTable }  from '@/components/DataTable';
-import { Summary }    from '@/components/Summary';
-import { ApiResponse, ProcessedData } from '@/types';
+import { FileUpload }       from '@/components/FileUpload';
+import { DataTable }        from '@/components/DataTable';
+import { Summary }          from '@/components/Summary';
+import { ProductionBoard }  from '@/components/ProductionBoard';
+import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
+import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -20,34 +22,71 @@ const VALID_LINES = [
 ];
 
 export default function HomePage() {
-  const [data, setData]               = useState<ProcessedData | null>(null);
-  const [isLoading, setLoading]       = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-  const [warning, setWarning]         = useState<string | null>(null);
-  const [showAnalytics, setShowAnalytics] = useState(true);
+  const [data, setData]                     = useState<ProcessedData | null>(null);
+  const [enrichedRows, setEnrichedRows]     = useState<ExcelRow[]>([]);
+  const [isLoading, setLoading]             = useState(false);
+  const [error, setError]                   = useState<string | null>(null);
+  const [warning, setWarning]               = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics]   = useState(true);
+  const [showBoard, setShowBoard]           = useState(true);
+
+  // Butter Chicken batch size confirmation
+  const [showBCModal, setShowBCModal]       = useState(false);
+  const [pendingRows, setPendingRows]       = useState<ExcelRow[]>([]);
+  const [bcBatchSize, setBcBatchSize]       = useState(1800);
+  const [bcInput, setBcInput]               = useState('1800');
+
+  function enrichAndStore(rows: ExcelRow[], bcCap: number) {
+    const enriched = calculateBatches(rows, bcCap);
+    setEnrichedRows(enriched);
+  }
 
   function handleData(response: ApiResponse) {
     if (response.success && response.data) {
+      const rawRows = response.data.filteredData;
       setData(response.data);
       setWarning(response.warning ?? null);
       setError(null);
+
+      if (hasButterChicken(rawRows)) {
+        // Ask user to confirm Butter Chicken batch cap before enriching
+        setPendingRows(rawRows);
+        setBcBatchSize(1800);
+        setBcInput('1800');
+        setShowBCModal(true);
+      } else {
+        enrichAndStore(rawRows, 1800);
+      }
     } else {
       setError(response.error ?? 'An error occurred.');
       setData(null);
+      setEnrichedRows([]);
     }
+  }
+
+  function handleBCConfirm() {
+    const cap = parseInt(bcInput, 10);
+    const safeCap = isNaN(cap) || cap <= 0 ? 1800 : cap;
+    setBcBatchSize(safeCap);
+    enrichAndStore(pendingRows, safeCap);
+    setShowBCModal(false);
+    setPendingRows([]);
   }
 
   function handleReset() {
     setData(null);
+    setEnrichedRows([]);
     setError(null);
     setWarning(null);
     setShowAnalytics(true);
+    setShowBoard(true);
+    setShowBCModal(false);
   }
 
   return (
     <main className="min-h-screen bg-slate-50">
 
-      {/* ── Sticky header ─────────────────────────────────────────────────── */}
+      {/* ── Sticky header ───────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -63,7 +102,7 @@ export default function HomePage() {
                 Production Line Analyser
               </h1>
               <p className="text-xs text-gray-400 hidden sm:block">
-                Upload → filter → download
+                Upload → filter → batch → board
               </p>
             </div>
           </div>
@@ -84,6 +123,55 @@ export default function HomePage() {
           )}
         </div>
       </header>
+
+      {/* ── Butter Chicken modal ─────────────────────────────────────────── */}
+      {showBCModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667
+                       1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="font-bold text-gray-900">Butter Chicken — Batch Size</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              <strong>Butter Chicken</strong> has a variable batch capacity. The default is{' '}
+              <span className="font-mono font-semibold">1800 kg</span>. Enter the confirmed capacity
+              for this run:
+            </p>
+            <input
+              type="number"
+              value={bcInput}
+              onChange={(e) => setBcInput(e.target.value)}
+              min={500}
+              max={2000}
+              step={50}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono
+                         focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setBcInput('1800'); handleBCConfirm(); }}
+                className="flex-1 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg
+                           hover:bg-gray-50 transition-colors"
+              >
+                Use Default (1800)
+              </button>
+              <button
+                onClick={handleBCConfirm}
+                className="flex-1 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg
+                           hover:bg-blue-700 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
 
@@ -190,12 +278,43 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* ── MAIN: Filtered production line tables ─────────────────────── */}
-            <DataTable data={data.filteredData} />
+            {/* ── MAIN: Filtered production line tables ──────────────────────── */}
+            <DataTable data={enrichedRows.length > 0 ? enrichedRows : data.filteredData} />
 
-            {/* ── SECONDARY: Analytics (collapsible) ───────────────────────── */}
+            {/* ── Production Board (kettles) ─────────────────────────────────── */}
+            {enrichedRows.some((r) => r.line.startsWith('KETTLE')) && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <button
+                  onClick={() => setShowBoard((v) => !v)}
+                  className="w-full flex items-center justify-between px-6 py-4
+                             text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    <span className="font-semibold text-gray-700">Production Board</span>
+                    <span className="text-xs text-gray-400">(Kettle sequencing)</span>
+                  </div>
+                  <svg
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200
+                                ${showBoard ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showBoard && (
+                  <div className="border-t border-gray-200 p-6">
+                    <ProductionBoard data={enrichedRows} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Analytics accordion (Summary) ─────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              {/* Accordion header */}
               <button
                 onClick={() => setShowAnalytics((v) => !v)}
                 className="w-full flex items-center justify-between px-6 py-4
@@ -210,7 +329,7 @@ export default function HomePage() {
                          2 0 01-2-2z" />
                   </svg>
                   <span className="font-semibold text-gray-700">Analytics</span>
-                  <span className="text-xs text-gray-400">(Summary & Chart)</span>
+                  <span className="text-xs text-gray-400">(Summary)</span>
                 </div>
                 <svg
                   className={`w-5 h-5 text-gray-400 transition-transform duration-200
@@ -221,7 +340,6 @@ export default function HomePage() {
                 </svg>
               </button>
 
-              {/* Summary content */}
               {showAnalytics && (
                 <div className="border-t border-gray-200 p-6">
                   <Summary

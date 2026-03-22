@@ -30,13 +30,18 @@ function safeFilename(line: string): string {
  */
 async function downloadAsExcel(rows: ExcelRow[], filename: string, includeLineCol: boolean) {
   const XLSX = await import('xlsx');
+  const hasBatches = rows.some((r) => r.batches !== undefined);
 
   const sheetData = rows.map((r) => {
     const obj: Record<string, string | number> = {};
-    if (includeLineCol)   obj['Line']           = r.line;
+    if (includeLineCol)   obj['Line']            = r.line;
     obj['Product']        = r.product;
     obj['Item Code']      = r.itemCode;
     obj['Qty']            = r.quantity;
+    if (hasBatches) {
+      obj['Batches']          = r.batches ?? 0;
+      obj['Batch Breakdown']  = r.batchBreakdown ?? '—';
+    }
     obj['UOM']            = r.uom;
     obj['Type']           = r.type;
     obj['Planning Group'] = r.planningGroup;
@@ -76,6 +81,7 @@ function DownloadIcon({ className = 'w-4 h-4' }: { className?: string }) {
 export function DataTable({ data: rawData }: DataTableProps) {
   // All sections start expanded; clicking the header collapses them
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const hasBatches = rawData.some((r) => r.batches !== undefined);
 
   const toggle = (line: string) =>
     setCollapsed((prev) => {
@@ -202,6 +208,16 @@ export function DataTable({ data: rawData }: DataTableProps) {
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
                         Qty
                       </th>
+                      {hasBatches && (
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
+                          Batches
+                        </th>
+                      )}
+                      {hasBatches && (
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
+                          Breakdown
+                        </th>
+                      )}
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
                         UOM
                       </th>
@@ -233,6 +249,16 @@ export function DataTable({ data: rawData }: DataTableProps) {
                         <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
                           {row.quantity.toLocaleString()}
                         </td>
+                        {hasBatches && (
+                          <td className="px-4 py-3 text-right font-mono font-bold text-indigo-700">
+                            {row.batches ?? 0}
+                          </td>
+                        )}
+                        {hasBatches && (
+                          <td className="px-4 py-3 font-mono text-xs text-indigo-600 whitespace-nowrap">
+                            {row.batchBreakdown ?? '—'}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-gray-500">{row.uom}</td>
                         <td className="px-4 py-3">
                           {row.type && (

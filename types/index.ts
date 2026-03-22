@@ -9,6 +9,22 @@ export interface ExcelRow {
   planningGroup: string;
   sequence: string;
   comments: string;
+  // Enriched by client-side batch calculator (optional — absent before enrichment)
+  batches?: number;
+  batchBreakdown?: string;
+}
+
+/** One item on the Production Board */
+export interface BoardItem {
+  id: string;
+  type: 'product' | 'cleaning';
+  line: string;
+  product: string;
+  quantity: number;
+  batches: number;
+  batchBreakdown: string;
+  time: string;           // editable HH:MM string
+  allergens: string[];
 }
 
 /** Per-line aggregated statistics */
