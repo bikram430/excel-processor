@@ -70,7 +70,13 @@ export function FileUpload({ onData, onLoading, onError }: FileUploadProps) {
     form.append('file', selectedFile);
 
     try {
-      const res    = await fetch('/api/upload', { method: 'POST', body: form });
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      if (!res.ok) {
+        let msg = `Upload failed (${res.status}).`;
+        try { const j = await res.json(); msg = (j as ApiResponse).error ?? msg; } catch { /* not JSON */ }
+        onError(msg);
+        return;
+      }
       const result = (await res.json()) as ApiResponse;
       onData(result);
       if (!result.success) onError(result.error ?? 'Upload failed.');

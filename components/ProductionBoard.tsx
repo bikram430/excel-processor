@@ -523,7 +523,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     const cards = board.querySelectorAll<HTMLElement>('[data-row-pos]');
     cards.forEach(el => { el.style.minHeight = ''; });
     const byPos: Record<string, HTMLElement[]> = {};
-    cards.forEach(el => { (byPos[el.dataset.rowPos!] ??= []).push(el); });
+    cards.forEach(el => { const pos = el.dataset.rowPos; if (pos) (byPos[pos] ??= []).push(el); });
     for (const group of Object.values(byPos)) {
       const maxH = Math.max(...group.map(el => el.offsetHeight));
       group.forEach(el => { el.style.minHeight = `${maxH}px`; });
@@ -746,6 +746,8 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
                 activeLines,
                 'production-board.pdf',
               );
+            } catch (err) {
+              alert(`Could not generate PDF: ${err instanceof Error ? err.message : String(err)}`);
             } finally {
               setPdfLoading(false);
             }

@@ -375,7 +375,7 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
     return rows;
   });
 
-  const maxLen = Math.max(...lineLists.map(l => l.length));
+  const maxLen = lineLists.length > 0 ? Math.max(...lineLists.map(l => l.length)) : 0;
   for (const lst of lineLists) {
     while (lst.length < maxLen) lst.push({ k: 'empty' });
   }

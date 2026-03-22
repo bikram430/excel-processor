@@ -111,7 +111,7 @@ function generalBatch(qty: number, cap: number): BatchResult {
 
 // ── Low-capacity (Vegan Lasagne, Minestrone Soup) ─────────────────────────
 function lowCapBatch(qty: number): BatchResult {
-  const n        = Math.ceil(qty / 1000);
+  const n        = Math.max(Math.ceil(qty / 1000), 1);
   const perBatch = Math.ceil(qty / n);
   return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
 }
