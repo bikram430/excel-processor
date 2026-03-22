@@ -6,7 +6,8 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
@@ -230,7 +231,7 @@ function ProductCard({
       </div>
 
       {/* ── Allergen badge + selector ── */}
-      <div className="px-3 pb-2" onPointerDown={e => e.stopPropagation()}>
+      <div className="px-3 pb-2" onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
         <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border mb-1 ${aColours.badge}`}>
           {ALLERGEN_OPTIONS.find(o => o.value === aKey)?.label ?? aKey}
         </span>
@@ -250,7 +251,7 @@ function ProductCard({
 
       {/* ── Start-time input ── */}
       {onTimeChange && (
-        <div className="px-3 pb-2 flex items-center gap-2" onPointerDown={e => e.stopPropagation()}>
+        <div className="px-3 pb-2 flex items-center gap-2" onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
           <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
           <input
             type="time"
@@ -266,7 +267,7 @@ function ProductCard({
       {onMoveTo && otherLines.length > 0 && (
         <div
           className="px-3 pb-3 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2"
-          onPointerDown={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}
         >
           <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">Move→</span>
           {otherLines.map(targetLine => {
@@ -333,7 +334,7 @@ function SortableCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      style={{ transform: CSS.Transform.toString(transform), transition, touchAction: 'none' }}
+      style={{ transform: CSS.Transform.toString(transform), transition, touchAction: 'none', userSelect: 'none' }}
       onPointerDown={() => setIsHolding(true)}
       onPointerUp={() => setIsHolding(false)}
       onPointerCancel={() => setIsHolding(false)}
@@ -511,13 +512,16 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
   /*
    * SENSORS:
-   * delay:     250ms hold required before drag activates (prevents accidental drags while scrolling)
-   * tolerance: 8px — finger can shift up to 8px during the hold without cancelling activation
-   *
-   * This is the standard "long-press to drag" pattern used in iOS/Android apps.
+   * MouseSensor — desktop mouse: activates immediately after 5px movement
+   * TouchSensor — mobile touch: 250ms hold + 8px tolerance before activating.
+   *   TouchSensor (unlike PointerSensor) calls preventDefault() on touchmove
+   *   when the delay elapses, which stops the browser from scrolling the page.
    */
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
       activationConstraint: { delay: 250, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
