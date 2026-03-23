@@ -62,11 +62,9 @@ function parseBatchSizes(breakdown: string, batches: number, qty: number): { kg:
   return Array.from({ length: n }, () => ({ kg: Math.ceil(qty / n) }));
 }
 
-function fmt12h(t: string): string {
+function fmtTime(t: string): string {
   if (!t) return '';
-  const [h, m] = t.split(':');
-  const hour = parseInt(h);
-  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+  return t; // stored as HH:MM in 24-hour format — display as-is
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
@@ -411,7 +409,7 @@ function CardView({ item, position, hasCIP }: {
         {!!item.time && (
           <View style={S.timeRow}>
             <Text style={S.timeLabel}>Start:</Text>
-            <Text style={S.timeValue}>{fmt12h(item.time)}</Text>
+            <Text style={S.timeValue}>{fmtTime(item.time)}</Text>
           </View>
         )}
       </View>

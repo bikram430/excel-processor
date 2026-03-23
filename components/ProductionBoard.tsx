@@ -32,6 +32,8 @@ import {
 } from '@/lib/allergenRules';
 import { downloadBoardPDF } from '@/lib/pdfExport';
 import { smartAssignKettles, getPreferredKettles } from '@/lib/kettlePreferences';
+import { parseLine78File } from '@/lib/line78Parser';
+import { bestMatch } from '@/lib/fuzzyMatcher';
 import {
   calculateMeat, recipesMap, subRecipesMap, meatDataLoadError,
   MEAT_ICON, MEAT_COLORS, type MeatResult,
@@ -653,6 +655,17 @@ function LineColumn({
   );
 }
 
+// ── Line 7-8 match types ────────────────────────────────────────────────────
+interface Line78MatchItem {
+  itemId: string;
+  itemProduct: string;
+  line: string;
+  matchedProduct: string; // '' when no match found
+  time: string;           // editable HH:MM 24-hour
+  isLowConfidence: boolean;
+  noMatch: boolean;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 interface ProductionBoardProps { data: ExcelRow[]; }
 
@@ -675,15 +688,23 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   // Derived from live state so it updates after smart assign
   const activeLines = BOARD_LINES.filter(line => (allItems[line]?.length ?? 0) > 0);
 
-  const [activeId,       setActiveId]       = useState<string | null>(null);
-  const [overLine,       setOverLine]        = useState<string | null>(null);
-  const [blockedLine,    setBlockedLine]     = useState<string | null>(null);
-  const [pdfLoading,     setPdfLoading]      = useState(false);
-  const [showMeat,       setShowMeat]        = useState(true);
-  const [meatSummaryOpen, setMeatSummaryOpen] = useState(false);
+  const [activeId,        setActiveId]        = useState<string | null>(null);
+  const [overLine,        setOverLine]         = useState<string | null>(null);
+  const [blockedLine,     setBlockedLine]      = useState<string | null>(null);
+  const [pdfLoading,      setPdfLoading]       = useState(false);
+  const [showMeat,        setShowMeat]         = useState(true);
+  const [meatSummaryOpen, setMeatSummaryOpen]  = useState(false);
+
+  // Line 7-8 upload state
+  const [line78Modal,    setLine78Modal]    = useState(false);
+  const [line78Matches,  setLine78Matches]  = useState<Line78MatchItem[]>([]);
+  const [line78Loading,  setLine78Loading]  = useState(false);
+  const [line78Toast,    setLine78Toast]    = useState<{ msg: string; ok: boolean } | null>(null);
+
   const snapshot    = useRef<Record<string, BoardItem[]> | null>(null);
   const lastOverRef = useRef<string | null>(null);
   const boardRef    = useRef<HTMLDivElement>(null);
+  const line78Ref   = useRef<HTMLInputElement>(null);
 
   // Sync showMeat with localStorage (client-only)
   useEffect(() => {
@@ -930,6 +951,75 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     });
   }
 
+  function showToast(msg: string, ok: boolean) {
+    setLine78Toast({ msg, ok });
+    setTimeout(() => setLine78Toast(null), 3500);
+  }
+
+  async function handleLine78Upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // allow re-upload of the same file
+
+    setLine78Loading(true);
+    try {
+      const entries = await parseLine78File(file);
+
+      if (entries.length === 0) {
+        showToast('No "Line 7" or "Line 8" rows found in the uploaded file.', false);
+        return;
+      }
+
+      const products      = entries.map(en => en.product);
+      const entryByName   = new Map(entries.map(en => [en.product, en]));
+      const pending: Line78MatchItem[] = [];
+
+      for (const line of activeLines) {
+        for (const item of (allItems[line] ?? [])) {
+          const result  = bestMatch(item.product, products);
+          const matched = result && !result.noMatch ? result.matched : '';
+          const entry   = matched ? entryByName.get(matched) : undefined;
+          pending.push({
+            itemId:          item.id,
+            itemProduct:     item.product,
+            line,
+            matchedProduct:  matched,
+            time:            entry?.startTime ?? item.time,
+            isLowConfidence: result?.isLowConfidence ?? true,
+            noMatch:         !matched,
+          });
+        }
+      }
+
+      setLine78Matches(pending);
+      setLine78Modal(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to parse the file.', false);
+    } finally {
+      setLine78Loading(false);
+    }
+  }
+
+  function updateMatchTime(itemId: string, time: string) {
+    setLine78Matches(prev => prev.map(m => m.itemId === itemId ? { ...m, time } : m));
+  }
+
+  function handleLine78Confirm() {
+    setAllItems(prev => {
+      const next = { ...prev };
+      for (const line of Object.keys(next)) {
+        next[line] = sortByTime(next[line].map(item => {
+          const match = line78Matches.find(m => m.itemId === item.id);
+          return match && match.time ? { ...item, time: match.time } : item;
+        }));
+      }
+      return next;
+    });
+    setLine78Modal(false);
+    setLine78Matches([]);
+    showToast('Start times applied successfully!', true);
+  }
+
   const activeItem = activeId ? findItem(activeId, allItems) : null;
 
   if (activeLines.length === 0) {
@@ -1081,17 +1171,38 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
         >
           🥩 {showMeat ? 'Hide Meat' : 'Show Meat'}
         </button>
+        {/* Hidden file input for Line 7-8 upload */}
+        <input
+          ref={line78Ref}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleLine78Upload}
+        />
         <button
-          onClick={handleSmartAssign}
+          onClick={() => line78Ref.current?.click()}
+          disabled={line78Loading}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
                      text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 active:scale-95
-                     transition-all shadow-sm w-full sm:w-auto"
+                     transition-all shadow-sm w-full sm:w-auto disabled:opacity-60 disabled:cursor-wait"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
-          </svg>
-          Smart Assign Kettles
+          {line78Loading ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Parsing…
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Upload Line 7-8
+            </>
+          )}
         </button>
         <button
           disabled={pdfLoading}
@@ -1257,6 +1368,155 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
             )}
           </table>
         </div>
+      </div>
+    )}
+
+    {/* ── Line 7-8 Confirmation Modal ─────────────────────────────────────── */}
+    {line78Modal && (() => {
+      const unmatched    = line78Matches.filter(m => m.noMatch).length;
+      const lowConf      = line78Matches.filter(m => m.isLowConfidence && !m.noMatch).length;
+      const linesInModal = BOARD_LINES.filter(l => line78Matches.some(m => m.line === l));
+      return (
+        <div className="fixed inset-0 z-50 flex items-start justify-center
+                        bg-black/40 backdrop-blur-sm overflow-y-auto py-6 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200
+                          w-full max-w-2xl mx-auto my-auto">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl">📅</span>
+                <h2 className="font-bold text-gray-900 text-lg">Line 7-8 Start Times</h2>
+                {lowConf > 0 && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                    ⚠ {lowConf} low confidence
+                  </span>
+                )}
+                {unmatched > 0 && (
+                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
+                    ✕ {unmatched} unmatched
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => { setLine78Modal(false); setLine78Matches([]); }}
+                className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ml-2"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="max-h-[60vh] overflow-y-auto p-5 space-y-5">
+              {linesInModal.map(line => (
+                <div key={line}>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    {LINE_LABEL[line] ?? line}
+                  </p>
+                  <div className="space-y-2">
+                    {line78Matches.filter(m => m.line === line).map(match => (
+                      <div
+                        key={match.itemId}
+                        className={`rounded-xl p-3 border ${
+                          match.noMatch
+                            ? 'bg-red-50 border-red-200'
+                            : match.isLowConfidence
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-green-50 border-green-200'
+                        }`}
+                      >
+                        {/* Product name */}
+                        <p className="font-semibold text-gray-900 text-sm leading-tight truncate">
+                          {match.itemProduct}
+                        </p>
+
+                        {/* Match badge + matched name */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                            match.noMatch
+                              ? 'bg-red-100 text-red-700'
+                              : match.isLowConfidence
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {match.noMatch ? '✕ No match found' : match.isLowConfidence ? '⚠ Low confidence' : '✓ Matched'}
+                          </span>
+                          {!match.noMatch && (
+                            <span className="text-[10px] text-gray-500 truncate max-w-full sm:max-w-xs">
+                              ← {match.matchedProduct}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Time input */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="text-[11px] text-gray-500 flex-shrink-0">Start time (24h):</span>
+                          <input
+                            type="time"
+                            value={match.time}
+                            onChange={e => updateMatchTime(match.itemId, e.target.value)}
+                            className={`text-sm font-mono border rounded-lg px-2 py-1
+                                        focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                              match.noMatch
+                                ? 'border-red-200 bg-white'
+                                : match.isLowConfidence
+                                ? 'border-amber-200 bg-white'
+                                : 'border-green-200 bg-white'
+                            }`}
+                          />
+                          {match.noMatch && !match.time && (
+                            <span className="text-[10px] text-red-400 italic">
+                              Enter manually or leave blank to skip
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between
+                            gap-3 px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <p className="text-xs text-gray-400">
+                Edit any time before applying. Blank times will be skipped.
+              </p>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => { setLine78Modal(false); setLine78Matches([]); }}
+                  className="flex-1 sm:flex-none px-4 py-2 text-sm text-gray-600
+                             border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLine78Confirm}
+                  className="flex-1 sm:flex-none px-5 py-2 text-sm font-semibold text-white
+                             bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all"
+                >
+                  Confirm &amp; Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+
+    {/* ── Toast notification ─────────────────────────────────────────────── */}
+    {line78Toast && (
+      <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3
+                       rounded-xl shadow-lg text-white text-sm font-semibold
+                       transition-all duration-300 max-w-xs ${
+        line78Toast.ok ? 'bg-green-600' : 'bg-red-600'
+      }`}>
+        <span>{line78Toast.ok ? '✓' : '✕'}</span>
+        <span>{line78Toast.msg}</span>
       </div>
     )}
     </>
