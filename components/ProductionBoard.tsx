@@ -104,8 +104,25 @@ function applyProductBatchCap(
   return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
 }
 
-// Lines that receive start times from the Line 7-8 schedule file
-const LINE78_TARGET_LINES = new Set(['KETTLE 1 SOUP', 'KETTLE 2 DIRECT FILL']);
+// K1 = Line 7 (Col B), K2 = Line 8 (Col R), K3 = Line 8 (Col R, same run as K2)
+const LINE78_TARGET_LINES = new Set([
+  'KETTLE 1 SOUP',
+  'KETTLE 2 DIRECT FILL',
+  'KETTLE 3 DIRECT FILL',
+]);
+
+// K4 and Blendtech use CIP-minimising order (not plain sequence)
+const K4_BT_LINES = new Set(['KETTLE 4 KAPCOLD', 'BLENDTECH']);
+
+// Meat type sort priority (group same meats together)
+const MEAT_TYPE_ORDER: Record<string, number> = {
+  Beef: 1, Chicken: 2, Lamb: 3, Pork: 4, Other: 5,
+};
+
+// Allergen sort priority (group same allergens together within a meat group)
+const ALLERGEN_SORT_ORDER: Record<string, number> = {
+  DAIRY: 1, WHEAT: 2, SOY: 3, FISH: 4, SULPHITE: 5, ALLERGEN_FREE: 6,
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -116,6 +133,44 @@ function sortRowsBySequence(rows: ExcelRow[]): ExcelRow[] {
     const bSeq = parseInt(b.sequence || '9999', 10);
     return (isNaN(aSeq) ? 9999 : aSeq) - (isNaN(bSeq) ? 9999 : bSeq);
   });
+}
+
+/**
+ * Sort K4 / Blendtech items to minimise CIP frequency:
+ *   1. Vegan first  (no meat + allergen-free)
+ *   2. Then group by meat type  (Beef → Chicken → Lamb → Pork → Other)
+ *   3. Within each meat group, sub-sort by allergen
+ *   4. Non-vegan / no-meat items come after all meat groups
+ */
+function sortK4BT(items: BoardItem[]): BoardItem[] {
+  if (items.length === 0) return items;
+
+  const withMeta = items.map(item => {
+    let meatType = '';
+    try {
+      const results = calculateMeat(item.itemCode, item.quantity, recipesMap, subRecipesMap);
+      meatType = results[0]?.meat_type ?? '';
+    } catch { /* no meat data — treat as no meat */ }
+    const allergen = item.allergens[0] ?? 'ALLERGEN_FREE';
+    const isVegan  = !meatType && allergen === 'ALLERGEN_FREE';
+    return { item, meatType, allergen, isVegan };
+  });
+
+  return withMeta.sort((a, b) => {
+    // 1. Vegan first
+    if (a.isVegan !== b.isVegan) return a.isVegan ? -1 : 1;
+    if (a.isVegan && b.isVegan)  return 0;
+
+    // 2. Group by meat type (items without meat sort after all meat groups)
+    const aMO = a.meatType ? (MEAT_TYPE_ORDER[a.meatType] ?? 6) : 7;
+    const bMO = b.meatType ? (MEAT_TYPE_ORDER[b.meatType] ?? 6) : 7;
+    if (aMO !== bMO) return aMO - bMO;
+
+    // 3. Within same meat type, group by allergen
+    const aAO = ALLERGEN_SORT_ORDER[a.allergen] ?? 7;
+    const bAO = ALLERGEN_SORT_ORDER[b.allergen] ?? 7;
+    return aAO - bAO;
+  }).map(x => x.item);
 }
 
 function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
@@ -705,9 +760,11 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
     for (const line of BOARD_LINES) {
-      // Order by the Sequence column from the production plan
-      const rows = sortRowsBySequence(boardRows.filter(r => r.line === line));
-      result[line] = rows.map((r, i) => rowToBoardItem(r, i));
+      const rows  = sortRowsBySequence(boardRows.filter(r => r.line === line));
+      const items = rows.map((r, i) => rowToBoardItem(r, i));
+      // K4 and Blendtech: vegan-first + meat-type grouping + allergen grouping
+      // All other lines: plain production-plan sequence order
+      result[line] = K4_BT_LINES.has(line) ? sortK4BT(items) : items;
     }
     return result;
   });
@@ -997,11 +1054,13 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
         return;
       }
 
-      // K1 (Kettle 1) matches against Line 7 entries — product names from Col B
-      // K2 (Kettle 2) matches against Line 8 entries — product names from Col R
+      // K1          → Line 7 entries (product names from Col B)
+      // K2 and K3   → Line 8 entries (product names from Col R)
+      //   K3 runs in parallel with K2 — same production line (Line 8)
       const entriesByLine: Record<string, typeof line7> = {
-        'KETTLE 1 SOUP':        line7,
-        'KETTLE 2 DIRECT FILL': line8,
+        'KETTLE 1 SOUP':         line7,
+        'KETTLE 2 DIRECT FILL':  line8,
+        'KETTLE 3 DIRECT FILL':  line8,
       };
 
       const pending: Line78MatchItem[] = [];
@@ -1425,7 +1484,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
                 <span className="text-xl">📅</span>
                 <h2 className="font-bold text-gray-900 text-lg">Line 7-8 Start Times</h2>
                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
-                  K1 &amp; K2 only
+                  K1 · K2 · K3
                 </span>
                 {lowConf > 0 && (
                   <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
