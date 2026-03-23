@@ -102,14 +102,27 @@ function SortableCard({
           )}
         </div>
 
-        {/* Time input */}
+        {/* Time input — plain text HH:MM (24h) */}
         <div className="flex items-center px-3 border-l border-gray-100">
           <input
-            type="time"
+            type="text"
             value={item.time}
+            placeholder="HH:MM"
+            maxLength={5}
             onChange={(e) => onTimeChange(item.id, e.target.value)}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              const m = v.match(/^(\d{1,2}):(\d{2})$/);
+              if (m) {
+                const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+                if (h < 24 && min < 60)
+                  onTimeChange(item.id, `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+              } else if (!v) {
+                onTimeChange(item.id, '');
+              }
+            }}
             className="text-xs font-mono text-gray-700 border border-gray-200 rounded
-                       px-1.5 py-1 w-24 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                       px-1.5 py-1 w-16 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </div>
       </div>
