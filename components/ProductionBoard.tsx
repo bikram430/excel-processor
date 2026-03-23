@@ -79,8 +79,32 @@ const ALLERGEN_COLOURS: Record<string, { badge: string; select: string }> = {
   ALLERGEN_FREE:{ badge: 'bg-green-100  text-green-700  border-green-300',  select: 'bg-green-50  text-green-700'  },
 };
 
+// ── Per-product batch size overrides ───────────────────────────────────────
+const PRODUCT_BATCH_CAPS: Record<string, number> = {
+  'butter chicken':               1800,
+  'finest creamy butter chicken': 1800,
+};
+
+function applyProductBatchCap(
+  row: ExcelRow,
+): { batches: number; batchBreakdown: string; physicalBatchSize: number } {
+  const cap    = PRODUCT_BATCH_CAPS[row.product.toLowerCase().trim()];
+  const physSz = row.physicalBatchSize ?? Math.ceil(row.quantity / Math.max(row.batches ?? 1, 1));
+  if (!cap || physSz <= cap) {
+    return {
+      batches:          row.batches ?? 1,
+      batchBreakdown:   row.batchBreakdown ?? `${row.quantity}×1`,
+      physicalBatchSize: physSz,
+    };
+  }
+  const n        = Math.max(Math.ceil(row.quantity / cap), 1);
+  const perBatch = Math.ceil(row.quantity / n);
+  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
+  const capped = applyProductBatchCap(row);
   return {
     id:                `${row.line}-${row.itemCode || row.product}-${index}`,
     type:              'product',
@@ -88,11 +112,11 @@ function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
     product:           row.product,
     itemCode:          row.itemCode ?? '',
     quantity:          row.quantity,
-    batches:           row.batches ?? 1,
-    batchBreakdown:    row.batchBreakdown ?? `${row.quantity}×1`,
+    batches:           capped.batches,
+    batchBreakdown:    capped.batchBreakdown,
     time:              '',
     allergens:         getProductAllergens(row.product, row.itemCode),
-    physicalBatchSize: row.physicalBatchSize ?? Math.ceil(row.quantity / (row.batches ?? 1)),
+    physicalBatchSize: capped.physicalBatchSize,
   };
 }
 
@@ -302,19 +326,19 @@ function ProductCard({
                     </div>
                     {/* Meat breakdown below the kg */}
                     {showMeat && meatForBatch.length > 0 && (
-                      <div className="pl-7 mt-0.5 space-y-px">
+                      <div className="mt-1 space-y-0.5">
                         {meatForBatch[0].is_sub_recipe ? (
                           // Sub-recipe chain display
                           <>
                             <div className="flex items-start gap-1">
-                              <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
-                              <span className="text-[9px] text-indigo-600 leading-tight">
+                              <span className="text-[9px] leading-none flex-shrink-0 mt-px">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
+                              <span className="text-[9px] text-indigo-600 leading-tight flex-1">
                                 {meatForBatch[0].sub_recipe_label}{' '}
                                 <span className="text-indigo-400">(sub)</span>
                               </span>
                             </div>
                             {meatForBatch[0].sub_qty_kg !== null && (
-                              <div className="flex items-center pl-3 gap-1">
+                              <div className="flex items-center gap-1 pl-1">
                                 <span className="text-[9px] text-gray-400">→</span>
                                 <span className="text-[9px] font-mono font-bold text-indigo-600 tabular-nums">
                                   {meatForBatch[0].sub_qty_kg.toFixed(2)} kg
@@ -323,11 +347,11 @@ function ProductCard({
                             )}
                             <div className="flex items-start gap-1">
                               <span className="text-[9px] text-gray-400 flex-shrink-0">Raw:</span>
-                              <span className="text-[9px] text-gray-600 leading-tight truncate">
+                              <span className="text-[9px] text-gray-600 leading-tight flex-1">
                                 {meatForBatch[0].ingredient_description}
                               </span>
                             </div>
-                            <div className="flex items-center pl-3 gap-1">
+                            <div className="flex items-center gap-1 pl-1">
                               <span className="text-[9px] text-gray-400">→</span>
                               <span className="text-[9px] font-mono font-bold text-rose-700 tabular-nums">
                                 {meatForBatch[0].qty_kg.toFixed(2)} kg
@@ -338,10 +362,10 @@ function ProductCard({
                           // Multi-meat display
                           <>
                             {meatForBatch.map((m, mi) => (
-                              <div key={mi} className="flex items-center gap-1">
-                                <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[m.meat_type]}</span>
-                                <span className="text-[9px] text-gray-600 flex-1 leading-tight min-w-0 truncate">
-                                  {m.ingredient_description}:
+                              <div key={mi} className="flex items-start gap-1">
+                                <span className="text-[9px] leading-none flex-shrink-0 mt-px">{MEAT_ICON[m.meat_type]}</span>
+                                <span className="text-[9px] text-gray-600 flex-1 leading-tight min-w-0">
+                                  {m.ingredient_description}
                                 </span>
                                 <span className="text-[9px] font-mono font-bold text-gray-700 tabular-nums flex-shrink-0">
                                   {m.qty_kg.toFixed(2)} kg
@@ -359,12 +383,12 @@ function ProductCard({
                           // Single direct meat
                           <>
                             <div className="flex items-start gap-1">
-                              <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
-                              <span className="text-[9px] text-gray-600 leading-tight truncate">
+                              <span className="text-[9px] leading-none flex-shrink-0 mt-px">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
+                              <span className="text-[9px] text-gray-600 leading-tight flex-1">
                                 {meatForBatch[0].ingredient_description}
                               </span>
                             </div>
-                            <div className="flex items-center pl-3 gap-1">
+                            <div className="flex items-center gap-1 pl-1">
                               <span className="text-[9px] text-gray-400">→</span>
                               <span className="text-[9px] font-mono font-bold text-gray-700 tabular-nums">
                                 {meatForBatch[0].qty_kg.toFixed(2)} kg
@@ -705,13 +729,15 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       .sort((a, b) => b.total - a.total);
   }, [allItems, nonKettleRows]);
 
-  // Pre-compute meat data for non-kettle table
+  // Pre-compute meat data for non-kettle table — only rows that have meat
   const nonKettleMeatData = useMemo(
-    () => nonKettleRows.map(row => ({
-      row,
-      meatResults: calculateMeat(row.itemCode ?? '', row.quantity, recipesMap, subRecipesMap),
-      inJson:      recipesMap.has((row.itemCode ?? '').toLowerCase().trim()),
-    })),
+    () => nonKettleRows
+      .map(row => ({
+        row,
+        meatResults: calculateMeat(row.itemCode ?? '', row.quantity, recipesMap, subRecipesMap),
+        inJson:      recipesMap.has((row.itemCode ?? '').toLowerCase().trim()),
+      }))
+      .filter(d => d.meatResults.length > 0),
     [nonKettleRows],
   );
   const nonKettleTotalMeat = useMemo(

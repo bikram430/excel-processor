@@ -6,8 +6,26 @@ import React from 'react';
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { BoardItem } from '@/types';
 import { needsCleaning } from '@/lib/allergenRules';
+import { calculateMeat, recipesMap, subRecipesMap } from '@/lib/meatCalculator';
+import type { MeatType } from '@/lib/meatCalculator';
 
 // ── Static maps ────────────────────────────────────────────────────────────
+
+const MEAT_ABBR: Record<MeatType, string> = {
+  Beef:    'BEEF',
+  Chicken: 'CHKN',
+  Lamb:    'LAMB',
+  Pork:    'PORK',
+  Other:   'MEAT',
+};
+
+const MEAT_FG: Record<MeatType, string> = {
+  Beef:    '#991B1B',
+  Chicken: '#1E40AF',
+  Lamb:    '#065F46',
+  Pork:    '#92400E',
+  Other:   '#374151',
+};
 
 const LINE_LABEL: Record<string, string> = {
   'KETTLE 1 SOUP':        'Kettle (K1)',
@@ -220,6 +238,52 @@ const S = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#4338CA',
   },
+  meatRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 2,
+  },
+  meatType: {
+    fontSize: 5.5,
+    fontFamily: 'Helvetica-Bold',
+    width: 24,
+    flexShrink: 0,
+  },
+  meatDesc: {
+    fontSize: 5.5,
+    fontFamily: 'Helvetica',
+    color: '#6B7280',
+    flex: 1,
+  },
+  meatQty: {
+    fontSize: 5.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#374151',
+    width: 34,
+    textAlign: 'right',
+  },
+  meatTotalStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 3,
+    paddingTop: 3,
+    paddingBottom: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    marginTop: 3,
+  },
+  meatTotalLabel: {
+    fontSize: 6,
+    fontFamily: 'Helvetica-Bold',
+    color: '#9F1239',
+  },
+  meatTotalKg: {
+    fontSize: 6.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#9F1239',
+  },
   allergenPill: {
     borderRadius: 20,
     paddingTop: 2,
@@ -283,8 +347,17 @@ function CardView({ item, position, hasCIP }: {
   hasCIP: boolean;
 }) {
   const allergenKey = item.allergens[0] ?? 'ALLERGEN_FREE';
-  const alg   = ALLERGEN_INFO[allergenKey] ?? ALLERGEN_INFO.ALLERGEN_FREE;
-  const sizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
+  const alg         = ALLERGEN_INFO[allergenKey] ?? ALLERGEN_INFO.ALLERGEN_FREE;
+  const sizes       = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
+
+  // Per-batch meat calculations
+  const allBatchMeat = sizes.map(b =>
+    calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap)
+  );
+  const hasMeat        = allBatchMeat.some(r => r.length > 0);
+  const totalCardMeat  = allBatchMeat.reduce(
+    (sum, results) => sum + results.reduce((s, r) => s + r.qty_kg, 0), 0
+  );
 
   return (
     <View style={S.card}>
@@ -305,13 +378,34 @@ function CardView({ item, position, hasCIP }: {
         <Text style={S.totalKg}>{item.quantity.toLocaleString()} kg total</Text>
 
         <View style={S.batchBox}>
-          {sizes.map((b, i) => (
-            <View key={i} style={i === sizes.length - 1 ? S.batchRowLast : S.batchRow}>
-              <Text style={S.batchNum}>*{i + 1}</Text>
-              <Text style={S.batchKg}>{b.kg.toLocaleString()} kg</Text>
-            </View>
-          ))}
+          {sizes.map((b, i) => {
+            const meatForBatch = allBatchMeat[i] ?? [];
+            return (
+              <View key={i}>
+                <View style={i === sizes.length - 1 ? S.batchRowLast : S.batchRow}>
+                  <Text style={S.batchNum}>*{i + 1}</Text>
+                  <Text style={S.batchKg}>{b.kg.toLocaleString()} kg</Text>
+                </View>
+                {meatForBatch.map((m, mi) => (
+                  <View key={mi} style={S.meatRow}>
+                    <Text style={[S.meatType, { color: MEAT_FG[m.meat_type] }]}>
+                      [{MEAT_ABBR[m.meat_type]}]
+                    </Text>
+                    <Text style={S.meatDesc}>{m.ingredient_description}</Text>
+                    <Text style={S.meatQty}>{m.qty_kg.toFixed(2)} kg</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
         </View>
+
+        {hasMeat && (
+          <View style={S.meatTotalStrip}>
+            <Text style={S.meatTotalLabel}>Total meat this card</Text>
+            <Text style={S.meatTotalKg}>{totalCardMeat.toFixed(2)} kg</Text>
+          </View>
+        )}
 
         <View style={[S.allergenPill, { backgroundColor: alg.bg }]}>
           <Text style={[S.allergenText, { color: alg.fg }]}>{alg.label}</Text>
