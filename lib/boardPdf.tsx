@@ -52,8 +52,9 @@ function parseBatchSizes(breakdown: string, batches: number, qty: number): { kg:
   if (matches.length > 0) {
     const out: { kg: number }[] = [];
     for (const m of matches) {
-      const count = parseInt(m[2]);
-      const kg    = parseInt(m[1]);
+      const count = parseInt(m[2], 10);
+      const kg    = parseInt(m[1], 10);
+      if (!count || !kg) continue;
       for (let i = 0; i < count; i++) out.push({ kg });
     }
     return out;

@@ -124,7 +124,7 @@ const RULES: Array<{ keywords: string[]; kettles: string[] }> = [
  */
 export function getPreferredKettles(product: string, itemCode: string): string[] {
   // Item-code match is unambiguous — check first
-  if (itemCode.toUpperCase().trim() === 'WMTSCP10000') return [K2];
+  if ((itemCode ?? '').toUpperCase().trim() === 'WMTSCP10000') return [K2];
 
   const lower = product.toLowerCase();
   for (const rule of RULES) {

@@ -150,8 +150,9 @@ function parseBatchSizes(
   if (matches.length > 0) {
     const out: { kg: number }[] = [];
     for (const m of matches) {
-      const kg = parseInt(m[1]);
-      const n  = parseInt(m[2]);
+      const kg = parseInt(m[1], 10);
+      const n  = parseInt(m[2], 10);
+      if (!kg || !n) continue;
       for (let i = 0; i < n; i++) out.push({ kg });
     }
     return out;
@@ -1169,12 +1170,12 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
     {/* ── Non-Kettle Items section ── */}
 
-    {nonKettleRows.length > 0 && (
+    {nonKettleMeatData.length > 0 && (
       <div className="mt-6">
         <h3 className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
-          Non-Kettle Items
+          Non-Kettle Items (Meat)
           <span className="text-sm font-normal text-gray-400">
-            ({nonKettleRows.length} item{nonKettleRows.length !== 1 ? 's' : ''})
+            ({nonKettleMeatData.length} item{nonKettleMeatData.length !== 1 ? 's' : ''} with meat)
           </span>
         </h3>
         <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">

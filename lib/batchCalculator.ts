@@ -125,8 +125,8 @@ export function calculateBatch(
 ): BatchResult {
   if (qty <= 0) return { batches: 0, batchBreakdown: '—', physicalBatchSize: 0 };
 
-  const codeUpper    = itemCode.toUpperCase().trim();
-  const productUpper = product.toUpperCase();
+  const codeUpper    = (itemCode  ?? '').toUpperCase().trim();
+  const productUpper = (product   ?? '').toUpperCase();
 
   const cqcSpec = CQC_PRODUCTS[codeUpper];
   if (cqcSpec)                                              return cqcBatch(qty, cqcSpec);
@@ -139,7 +139,7 @@ export function calculateBatch(
 }
 
 export function hasButterChicken(rows: ExcelRow[]): boolean {
-  return rows.some(r => r.itemCode.toUpperCase().trim() === BUTTER_CHICKEN_CODE);
+  return rows.some(r => (r.itemCode ?? '').toUpperCase().trim() === BUTTER_CHICKEN_CODE);
 }
 
 export function calculateBatches(rows: ExcelRow[], butterChickenCap = DEFAULT_CAP): ExcelRow[] {

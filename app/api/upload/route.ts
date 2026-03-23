@@ -21,6 +21,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Reject files over 15 MB ───────────────────────────────────────────
+    const MAX_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json(
+        { success: false, error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 15 MB.` },
+        { status: 413 }
+      );
+    }
+
     // ── Validate file type by MIME and/or extension ───────────────────────
     const isValidMime = ALLOWED_MIME.has(file.type);
     const isValidExt  = /\.(xlsx|xls)$/i.test(file.name);

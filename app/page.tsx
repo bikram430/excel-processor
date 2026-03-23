@@ -66,7 +66,7 @@ export default function HomePage() {
 
   function handleBCConfirm() {
     const cap = parseInt(bcInput, 10);
-    const safeCap = isNaN(cap) || cap <= 0 ? 1800 : cap;
+    const safeCap = isNaN(cap) || cap <= 0 ? 1800 : Math.min(cap, 2000);
     setBcBatchSize(safeCap);
     enrichAndStore(pendingRows, safeCap);
     setShowBCModal(false);
