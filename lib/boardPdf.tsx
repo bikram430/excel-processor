@@ -3,29 +3,28 @@
  * Imported only by app/api/pdf/route.ts — never bundled on the client.
  */
 import React from 'react';
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer';
 import type { BoardItem } from '@/types';
 import { needsCleaning } from '@/lib/allergenRules';
 import { calculateMeat, recipesMap, subRecipesMap } from '@/lib/meatCalculator';
 import type { MeatType } from '@/lib/meatCalculator';
 
+// ── Emoji support — register Twemoji so emoji glyphs render in the PDF ─────
+Font.registerEmojiSource({
+  format: 'png',
+  url: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/',
+});
+
 // ── Static maps ────────────────────────────────────────────────────────────
 
 const MEAT_ABBR: Record<MeatType, string> = {
-  Beef:    'BEEF',
-  Chicken: 'CHKN',
-  Lamb:    'LAMB',
-  Pork:    'PORK',
-  Other:   'MEAT',
+  Beef:    '🐄',
+  Chicken: '🐔',
+  Lamb:    '🐑',
+  Pork:    '🐷',
+  Other:   '🥩',
 };
 
-const MEAT_FG: Record<MeatType, string> = {
-  Beef:    '#991B1B',
-  Chicken: '#1E40AF',
-  Lamb:    '#065F46',
-  Pork:    '#92400E',
-  Other:   '#374151',
-};
 
 const LINE_LABEL: Record<string, string> = {
   'KETTLE 1 SOUP':        'Kettle (K1)',
@@ -245,9 +244,8 @@ const S = StyleSheet.create({
     marginTop: 2,
   },
   meatType: {
-    fontSize: 5.5,
-    fontFamily: 'Helvetica-Bold',
-    width: 24,
+    fontSize: 8,
+    width: 14,
     flexShrink: 0,
   },
   meatDesc: {
@@ -389,9 +387,7 @@ function CardView({ item, position, hasCIP }: {
                 </View>
                 {meatForBatch.map((m, mi) => (
                   <View key={mi} style={S.meatRow}>
-                    <Text style={[S.meatType, { color: MEAT_FG[m.meat_type] }]}>
-                      [{MEAT_ABBR[m.meat_type]}]
-                    </Text>
+                    <Text style={S.meatType}>{MEAT_ABBR[m.meat_type]}</Text>
                     <Text style={S.meatDesc}>{m.ingredient_description}</Text>
                     <Text style={S.meatQty}>{m.qty_kg.toFixed(2)} kg</Text>
                   </View>
