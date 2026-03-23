@@ -104,7 +104,20 @@ function applyProductBatchCap(
   return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
 }
 
+// Lines that receive start times from the Line 7-8 schedule file
+const LINE78_TARGET_LINES = new Set(['KETTLE 1 SOUP', 'KETTLE 2 DIRECT FILL']);
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Sort rows by the Sequence column from the production plan (ascending). */
+function sortRowsBySequence(rows: ExcelRow[]): ExcelRow[] {
+  return [...rows].sort((a, b) => {
+    const aSeq = parseInt(a.sequence || '9999', 10);
+    const bSeq = parseInt(b.sequence || '9999', 10);
+    return (isNaN(aSeq) ? 9999 : aSeq) - (isNaN(bSeq) ? 9999 : bSeq);
+  });
+}
+
 function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
   const capped = applyProductBatchCap(row);
   return {
@@ -441,14 +454,27 @@ function ProductCard({
         )}
       </div>
 
-      {/* ── Start-time input ── */}
+      {/* ── Start-time input (24h text) ── */}
       {onTimeChange && (
         <div className="px-3 pb-2 flex items-center gap-2">
           <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
           <input
-            type="time"
+            type="text"
             value={item.time}
+            placeholder="HH:MM"
+            maxLength={5}
             onChange={e => onTimeChange(item.id, e.target.value)}
+            onBlur={e => {
+              const v = e.target.value.trim();
+              const m = v.match(/^(\d{1,2}):(\d{2})$/);
+              if (m) {
+                const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+                if (h < 24 && min < 60)
+                  onTimeChange(item.id, `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+              } else if (!v) {
+                onTimeChange(item.id, '');
+              }
+            }}
             className="flex-1 min-w-0 text-[11px] font-mono text-gray-700 border border-gray-200
                        rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
@@ -679,8 +705,9 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
     for (const line of BOARD_LINES) {
-      const rows = boardRows.filter(r => r.line === line);
-      result[line] = suggestOrder(rows.map((r, i) => rowToBoardItem(r, i)));
+      // Order by the Sequence column from the production plan
+      const rows = sortRowsBySequence(boardRows.filter(r => r.line === line));
+      result[line] = rows.map((r, i) => rowToBoardItem(r, i));
     }
     return result;
   });
@@ -974,7 +1001,9 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       const entryByName   = new Map(entries.map(en => [en.product, en]));
       const pending: Line78MatchItem[] = [];
 
-      for (const line of activeLines) {
+      // Only K1 and K2 receive start times from the Line 7-8 schedule
+      const targetLines = activeLines.filter(l => LINE78_TARGET_LINES.has(l));
+      for (const line of targetLines) {
         for (const item of (allItems[line] ?? [])) {
           const result  = bestMatch(item.product, products);
           const matched = result && !result.noMatch ? result.matched : '';
@@ -1387,6 +1416,9 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xl">📅</span>
                 <h2 className="font-bold text-gray-900 text-lg">Line 7-8 Start Times</h2>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
+                  K1 &amp; K2 only
+                </span>
                 {lowConf > 0 && (
                   <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
                     ⚠ {lowConf} low confidence
@@ -1455,10 +1487,21 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                           <span className="text-[11px] text-gray-500 flex-shrink-0">Start time (24h):</span>
                           <input
-                            type="time"
+                            type="text"
+                            placeholder="HH:MM"
+                            maxLength={5}
                             value={match.time}
                             onChange={e => updateMatchTime(match.itemId, e.target.value)}
-                            className={`text-sm font-mono border rounded-lg px-2 py-1
+                            onBlur={e => {
+                              const v = e.target.value.trim();
+                              const m = v.match(/^(\d{1,2}):(\d{2})$/);
+                              if (m) {
+                                const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+                                if (h < 24 && min < 60)
+                                  updateMatchTime(match.itemId, `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+                              }
+                            }}
+                            className={`text-sm font-mono border rounded-lg px-2 py-1 w-20
                                         focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
                               match.noMatch
                                 ? 'border-red-200 bg-white'
