@@ -5,6 +5,17 @@ export interface Line78Entry {
   startTime: string; // HH:MM, 24-hour format
 }
 
+/**
+ * Parsed result split by line.
+ *   line7 — rows where Col A contains "Line 7"; product name from Col B (index 1)
+ *   line8 — rows where Col A contains "Line 8"; product name from Col R (index 17)
+ *   Both use Col P (index 15) for the start time.
+ */
+export interface Line78ParseResult {
+  line7: Line78Entry[];
+  line8: Line78Entry[];
+}
+
 function cellStr(val: unknown): string {
   return val != null ? String(val).trim() : '';
 }
@@ -19,14 +30,12 @@ function cellStr(val: unknown): string {
 function parseTimeCell(val: unknown): string {
   if (val == null || val === '') return '';
 
-  // Case 1: Date object
   if (val instanceof Date) {
     const h = val.getHours();
     const m = val.getMinutes();
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  // Case 2: Numeric Excel time serial (fraction of a day, 0–1)
   if (typeof val === 'number' && val >= 0 && val < 1) {
     const totalMin = Math.round(val * 24 * 60);
     const h = Math.floor(totalMin / 60) % 24;
@@ -34,7 +43,6 @@ function parseTimeCell(val: unknown): string {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  // Case 3: String — parse leading HH:MM (ignores seconds and AM/PM)
   const str = String(val).trim();
   const match = str.match(/^(\d{1,2}):(\d{2})/);
   if (match) {
@@ -45,27 +53,24 @@ function parseTimeCell(val: unknown): string {
     }
   }
 
-  return ''; // unparseable — treat as missing
+  return '';
 }
 
 /**
  * Parse a Line 7-8 scheduling Excel file in the browser.
  *
- * Rules:
- *   - Scan every row in the first sheet.
- *   - Include rows where Column A (index 0) contains "Line 7" or "Line 8"
- *     (case-insensitive, substring match).
- *   - Product name  → Column B (index 1)
- *   - Start time    → Column P (index 15), 24-hour HH:MM
- *
- * Throws if the file cannot be read or contains no sheets.
+ * Column mapping:
+ *   Col A  (index  0) — line identifier; must contain "Line 7" or "Line 8"
+ *   Col B  (index  1) — product name for Line 7 (Kettle 1)
+ *   Col P  (index 15) — start time (24h HH:MM) — same column for both lines
+ *   Col R  (index 17) — product name for Line 8 (Kettle 2)
  */
-export async function parseLine78File(file: File): Promise<Line78Entry[]> {
+export async function parseLine78File(file: File): Promise<Line78ParseResult> {
   const buffer = await file.arrayBuffer();
 
   const workbook = XLSX.read(new Uint8Array(buffer), {
     type: 'array',
-    cellDates: true, // return Date objects for date/time cells
+    cellDates: true,
   });
 
   if (!workbook.SheetNames.length) {
@@ -73,24 +78,31 @@ export async function parseLine78File(file: File): Promise<Line78Entry[]> {
   }
 
   const ws   = workbook.Sheets[workbook.SheetNames[0]];
-  // raw:true (default) returns the cell's .v value — numbers stay numbers,
-  // Date objects stay Date objects, text stays text.
   const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-  const entries: Line78Entry[] = [];
+  const line7: Line78Entry[] = [];
+  const line8: Line78Entry[] = [];
 
   for (const row of rows) {
     if (!Array.isArray(row) || row.length === 0) continue;
 
     const colA  = cellStr(row[0]).toUpperCase();
-    if (!colA.includes('LINE 7') && !colA.includes('LINE 8')) continue;
+    const isL7  = colA.includes('LINE 7');
+    const isL8  = colA.includes('LINE 8');
+    if (!isL7 && !isL8) continue;
 
-    const product = cellStr(row[1]); // Column B
-    if (!product) continue;
+    const startTime = parseTimeCell(row[15]); // Column P — start time for both lines
 
-    const startTime = parseTimeCell(row[15]); // Column P
-    entries.push({ product, startTime });
+    if (isL7) {
+      const product = cellStr(row[1]); // Column B — Line 7 product name
+      if (product) line7.push({ product, startTime });
+    }
+
+    if (isL8) {
+      const product = cellStr(row[17]); // Column R — Line 8 product name
+      if (product) line8.push({ product, startTime });
+    }
   }
 
-  return entries;
+  return { line7, line8 };
 }

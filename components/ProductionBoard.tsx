@@ -990,20 +990,28 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
     setLine78Loading(true);
     try {
-      const entries = await parseLine78File(file);
+      const { line7, line8 } = await parseLine78File(file);
 
-      if (entries.length === 0) {
+      if (line7.length === 0 && line8.length === 0) {
         showToast('No "Line 7" or "Line 8" rows found in the uploaded file.', false);
         return;
       }
 
-      const products      = entries.map(en => en.product);
-      const entryByName   = new Map(entries.map(en => [en.product, en]));
+      // K1 (Kettle 1) matches against Line 7 entries — product names from Col B
+      // K2 (Kettle 2) matches against Line 8 entries — product names from Col R
+      const entriesByLine: Record<string, typeof line7> = {
+        'KETTLE 1 SOUP':        line7,
+        'KETTLE 2 DIRECT FILL': line8,
+      };
+
       const pending: Line78MatchItem[] = [];
 
-      // Only K1 and K2 receive start times from the Line 7-8 schedule
       const targetLines = activeLines.filter(l => LINE78_TARGET_LINES.has(l));
       for (const line of targetLines) {
+        const entries     = entriesByLine[line] ?? [];
+        const products    = entries.map(en => en.product);
+        const entryByName = new Map(entries.map(en => [en.product, en]));
+
         for (const item of (allItems[line] ?? [])) {
           const result  = bestMatch(item.product, products);
           const matched = result && !result.noMatch ? result.matched : '';
