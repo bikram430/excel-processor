@@ -21,6 +21,7 @@ export interface BoardItem {
   type: 'product' | 'cleaning';
   line: string;
   product: string;
+  itemCode: string;       // WIP item code — used for meat recipe lookup
   quantity: number;
   batches: number;
   batchBreakdown: string;

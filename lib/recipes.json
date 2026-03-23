@@ -1,0 +1,1118 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "total_recipes": 51,
+    "last_updated": "2026-03-24",
+    "batch_calculation_formula": {
+      "description": "To calculate meat qty for any desired finished batch size",
+      "formula": "new_meat_qty = (desired_batch_size / finished_yield_base) * base_meat_qty",
+      "note": "desired_batch_size refers to the FINISHED PRODUCT quantity"
+    }
+  },
+  "recipes": [
+    {
+      "product": "Beef Cottage Pie Sauce",
+      "product_code": "WSPSCI10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 403.49,
+          "meat_percentage": 34.70
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1162.79,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.00,
+        "finished_yield_percentage": 86.00,
+        "yield_loss": 162.79,
+        "yield_loss_percentage": 14.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Beef & Gravy Filling",
+      "product_code": "WBEGRFI1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 42.00,
+          "meat_percentage": 42.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 90.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 10.000,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Parmesan & Garlic Filling SR0223",
+      "product_code": "WCPGC10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 49.880,
+          "meat_percentage": 49.88
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Bolognese Sauce 2025",
+      "product_code": "WBOLSAU1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 25.000,
+          "meat_percentage": 25.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Mexican Beef Soup",
+      "product_code": "WMBS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBFKNDC1010",
+          "ingredient_description": "Beef Knuckle In-house Diced 10x10mm",
+          "base_meat_qty": 18.000,
+          "meat_percentage": 18.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 88.000,
+        "finished_yield_percentage": 88.00,
+        "yield_loss": 12.000,
+        "yield_loss_percentage": 12.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Perform Build Chicken Minestrone Soup",
+      "product_code": "WCKMINE1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 15.100,
+          "meat_percentage": 15.10
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken & Corn Soup",
+      "product_code": "WCCSOUP1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 17.000,
+          "meat_percentage": 17.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken & Vegetable Soup",
+      "product_code": "WCVSOUP1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 13.400,
+          "meat_percentage": 13.40
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Noodle Soup",
+      "product_code": "WCNSOUP1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 13.650,
+          "meat_percentage": 13.65
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken & Ancient Grain Soup",
+      "product_code": "WCAGSOU1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC1010",
+          "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
+          "base_meat_qty": 13.550,
+          "meat_percentage": 13.55
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Better Beef Stroganoff Sauce",
+      "product_code": "WBMSR10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBFKNST0010",
+          "ingredient_description": "Beef Knuckle In-house Strips 10mm",
+          "base_meat_qty": 41.500,
+          "meat_percentage": 41.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 99.000,
+        "finished_yield_percentage": 99.00,
+        "yield_loss": 1.000,
+        "yield_loss_percentage": 1.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Coles Better Chicken Korma",
+      "product_code": "WKCKR10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Coles Chicken Biryani Sauce",
+      "product_code": "WCBRSCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.300,
+          "meat_percentage": 36.30
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 85.500,
+        "finished_yield_percentage": 85.50,
+        "yield_loss": 14.500,
+        "yield_loss_percentage": 14.50
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Marinated Diced Tandoori Chicken",
+      "product_code": "WMDTCCD1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 887.760,
+          "meat_percentage": 87.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1020.420,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 98.00,
+        "yield_loss": 20.420,
+        "yield_loss_percentage": 2.00
+      },
+      "sub_recipe": true,
+      "used_in": ["WBCCCP10000"]
+    },
+    {
+      "product": "Beef Marinated",
+      "product_code": "WBMMCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBFKNDC2020",
+          "ingredient_description": "Beef Knuckle In-house Diced 20x20mm",
+          "base_meat_qty": 88.500,
+          "meat_percentage": 88.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Char Sui Chicken Coles",
+      "product_code": "WCSCCA100000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 1030.260,
+          "meat_percentage": 78.30
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1315.780,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 76.00,
+        "yield_loss": 315.780,
+        "yield_loss_percentage": 24.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Char Sui Pork Coles",
+      "product_code": "WCSPCA10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": null,
+          "ingredient_description": "SSF Pork Shoulder 10mm Dice",
+          "base_meat_qty": 1030.260,
+          "meat_percentage": 78.30
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1315.780,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 76.00,
+        "yield_loss": 315.780,
+        "yield_loss_percentage": 24.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Marinated (Singapore)",
+      "product_code": "WSNCCA10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 912.000,
+          "meat_percentage": 91.20
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1000.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 900.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 100.000,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Butter Chicken",
+      "product_code": "WBCCCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WMDTCCD1000",
+          "ingredient_description": "Marinated Diced Tandoori Chicken",
+          "base_meat_qty": 540.000,
+          "meat_percentage": 54.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1000.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 935.000,
+        "finished_yield_percentage": 93.50,
+        "yield_loss": 65.000,
+        "yield_loss_percentage": 6.50
+      },
+      "sub_recipe": false,
+      "uses_sub_recipe": {
+        "sub_recipe_code": "WMDTCCD1000",
+        "sub_recipe_name": "Marinated Diced Tandoori Chicken",
+        "raw_meat_code": "WCKBRDC2020",
+        "raw_meat_description": "Chicken Breast In-house Diced 20x20mm"
+      }
+    },
+    {
+      "product": "Chicken Black Bean Sauce",
+      "product_code": "WCBBCI10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 92.000,
+        "finished_yield_percentage": 92.00,
+        "yield_loss": 8.000,
+        "yield_loss_percentage": 8.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Lamb Rogan Josh DTV",
+      "product_code": "WLRJCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WLMMCP10000",
+          "ingredient_description": "Lamb Marinade",
+          "base_meat_qty": 47.500,
+          "meat_percentage": 47.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 97.000,
+        "finished_yield_percentage": 97.00,
+        "yield_loss": 3.000,
+        "yield_loss_percentage": 3.00
+      },
+      "sub_recipe": false,
+      "uses_sub_recipe": {
+        "sub_recipe_code": "WLMMCP10000",
+        "sub_recipe_name": "Lamb Marinade",
+        "raw_meat_code": "RFIMT000011",
+        "raw_meat_description": "Lamb Diced 20x20mm"
+      }
+    },
+    {
+      "product": "Coles Lasagne Meat Sauce",
+      "product_code": "WBLSCI10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 389.533,
+          "meat_percentage": 33.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1162.791,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 86.00,
+        "yield_loss": 162.791,
+        "yield_loss_percentage": 14.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Coles Spaghetti Bolognese Sauce",
+      "product_code": "WSBLS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "RFIMT000054",
+          "ingredient_description": "Beef Mince 85CL 6mm Fresh",
+          "base_meat_qty": 33.500,
+          "meat_percentage": 33.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 90.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 10.000,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Thai Green Curry Coles",
+      "product_code": "WTGSCA10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 54.000,
+          "meat_percentage": 54.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 99.000,
+        "finished_yield_percentage": 99.00,
+        "yield_loss": 1.000,
+        "yield_loss_percentage": 1.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "EM Cottage Pie Sauce",
+      "product_code": "WEMCPS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM75IH1000",
+          "ingredient_description": "Beef Mince 75CL In House",
+          "base_meat_qty": 214.450,
+          "meat_percentage": 19.30
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1111.111,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 111.111,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Coles EPP Chicken Curry Sauce",
+      "product_code": "WCCRCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 282.000,
+          "meat_percentage": 28.20
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1000.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 100.00,
+        "yield_loss": 0.000,
+        "yield_loss_percentage": 0.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Meat Sauce EPP (EM)",
+      "product_code": "WMTSCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM75IH1000",
+          "ingredient_description": "Beef Mince 75CL In House",
+          "base_meat_qty": 225.260,
+          "meat_percentage": 21.40
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1052.630,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 52.630,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Thai Green Curry EPP",
+      "product_code": "WETGCA10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 312.810,
+          "meat_percentage": 27.94
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1119.420,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 89.33,
+        "yield_loss": 119.420,
+        "yield_loss_percentage": 10.67
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Finest Beef Ragu 2025",
+      "product_code": "WFIBERA1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 7.800,
+          "meat_percentage": 7.78
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.250,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 94.76,
+        "yield_loss": 5.250,
+        "yield_loss_percentage": 5.24
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Finest Creamy Butter Chicken",
+      "product_code": "WCRMBCK1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WRCTM10000",
+          "ingredient_description": "Raw Chicken Tikka Marinated",
+          "base_meat_qty": 48.000,
+          "meat_percentage": 48.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 93.000,
+        "finished_yield_percentage": 93.00,
+        "yield_loss": 7.000,
+        "yield_loss_percentage": 7.00
+      },
+      "sub_recipe": false,
+      "uses_sub_recipe": {
+        "sub_recipe_code": "WRCTM10000",
+        "sub_recipe_name": "Raw Chicken Tikka Marinated",
+        "raw_meat_code": "WCLDCIH1000",
+        "raw_meat_description": "Chicken Leg Diced 20mm In House"
+      }
+    },
+    {
+      "product": "Lamb Marinade",
+      "product_code": "WLMMCP10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "RFIMT000011",
+          "ingredient_description": "Lamb Diced 20x20mm",
+          "base_meat_qty": 93.684,
+          "meat_percentage": 89.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 105.263,
+        "total_input_percentage": 100.00,
+        "finished_yield": 100.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.263,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": true,
+      "used_in": ["WLRJCP10000"]
+    },
+    {
+      "product": "Raw Chicken Tikka Marinated",
+      "product_code": "WRCTM10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCLDCIH1000",
+          "ingredient_description": "Chicken Leg Diced 20mm In House",
+          "base_meat_qty": 102.291,
+          "meat_percentage": 92.86
+        }
+      ],
+      "recipe_base": {
+        "total_input": 110.161,
+        "total_input_percentage": 100.00,
+        "finished_yield": 100.000,
+        "finished_yield_percentage": 90.78,
+        "yield_loss": 10.161,
+        "yield_loss_percentage": 9.22
+      },
+      "sub_recipe": true,
+      "used_in": ["WCRMBCK1000"]
+    },
+    {
+      "product": "RSPCA Chicken Leek Pie Sauce 2025",
+      "product_code": "WCLPSS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Mongolian Beef Sauce",
+      "product_code": "WMNGB10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBFKNST0010",
+          "ingredient_description": "Beef Knuckle In-house Strips 10mm",
+          "base_meat_qty": 43.200,
+          "meat_percentage": 43.20
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 84.500,
+        "finished_yield_percentage": 84.50,
+        "yield_loss": 15.500,
+        "yield_loss_percentage": 15.50
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Perform Beef Ragu Sauce",
+      "product_code": "WHBRS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBPM10000",
+          "ingredient_description": "Beef Primal Minced",
+          "base_meat_qty": 489.360,
+          "meat_percentage": 43.9155
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1114.327,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 89.74,
+        "yield_loss": 114.327,
+        "yield_loss_percentage": 10.26
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Pesto Creamy Sauce",
+      "product_code": "WCKPEST1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 32.500,
+          "meat_percentage": 32.50
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 97.550,
+        "finished_yield_percentage": 97.55,
+        "yield_loss": 2.450,
+        "yield_loss_percentage": 2.45
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Pasta Bake Sauce",
+      "product_code": "WCKSCI10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 24.070,
+          "meat_percentage": 24.07
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 92.000,
+        "finished_yield_percentage": 92.00,
+        "yield_loss": 8.000,
+        "yield_loss_percentage": 8.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Beef Chilli Con Carne Hot Fill",
+      "product_code": "WBCCCHF1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 28.400,
+          "meat_percentage": 28.26
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.500,
+        "total_input_percentage": 100.00,
+        "finished_yield": 92.750,
+        "finished_yield_percentage": 92.29,
+        "yield_loss": 7.750,
+        "yield_loss_percentage": 7.71
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Beef Chilli Con Carne",
+      "product_code": "WBCCCCD1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 28.400,
+          "meat_percentage": 28.26
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.500,
+        "total_input_percentage": 100.00,
+        "finished_yield": 92.750,
+        "finished_yield_percentage": 92.29,
+        "yield_loss": 7.750,
+        "yield_loss_percentage": 7.71
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Sweet & Sour Chicken Sauce",
+      "product_code": "WSSCSCD1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 338.350,
+          "meat_percentage": 31.25
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1082.720,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 92.36,
+        "yield_loss": 82.720,
+        "yield_loss_percentage": 7.64
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chicken Fajita Sauce",
+      "product_code": "WCFSFCD1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 321.990,
+          "meat_percentage": 28.80
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1118.130,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 89.44,
+        "yield_loss": 118.130,
+        "yield_loss_percentage": 10.56
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Kung Pao Chicken Sauce",
+      "product_code": "WKUPCS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Thai Red Chicken Sauce",
+      "product_code": "WTHRCC10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Finest Beef Lasagna Sauce 2025",
+      "product_code": "WFBLSAU1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WBM85IH1000",
+          "ingredient_description": "Beef Mince 85CL In House",
+          "base_meat_qty": 369.570,
+          "meat_percentage": 31.41
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1176.470,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 85.00,
+        "yield_loss": 176.470,
+        "yield_loss_percentage": 15.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Shepherds Pie Sauce",
+      "product_code": "WSHPISA1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "RFIMT000108",
+          "ingredient_description": "Lamb Leg Mince In House (from Lamb Chump)",
+          "base_meat_qty": 20.000,
+          "meat_percentage": 20.00
+        },
+        {
+          "ingredient_code": "RFIMT000108",
+          "ingredient_description": "Lamb Leg 10mm Dice (from Lamb Chump)",
+          "base_meat_qty": 20.000,
+          "meat_percentage": 20.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Mixed Meat Lasagna Meat Sauce",
+      "product_code": "WMMLMSA1000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WPOMNIH1000",
+          "ingredient_description": "Pork Mince In House",
+          "base_meat_qty": 133.890,
+          "meat_percentage": 12.05
+        },
+        {
+          "ingredient_code": "WBM75IH1000",
+          "ingredient_description": "Beef Mince 75CL In House",
+          "base_meat_qty": 81.110,
+          "meat_percentage": 7.30
+        }
+      ],
+      "recipe_base": {
+        "total_input": 1111.111,
+        "total_input_percentage": 100.00,
+        "finished_yield": 1000.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 111.111,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "CK RSPCA Chicken Tikka Masala 2025",
+      "product_code": "WCKCTM10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.050,
+          "meat_percentage": 36.05
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "RSPCA Thai Sweet Chilli Chicken Sauce",
+      "product_code": "WTSCCS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 35.000,
+          "meat_percentage": 35.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "RSPCA American BBQ Chicken Sauce 2025",
+      "product_code": "WABQCS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "RSPCA Chicken Madras Curry",
+      "product_code": "WCMCCC10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCKBRDC2020",
+          "ingredient_description": "Chicken Breast In-house Diced 20x20mm",
+          "base_meat_qty": 36.000,
+          "meat_percentage": 36.00
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 95.000,
+        "finished_yield_percentage": 95.00,
+        "yield_loss": 5.000,
+        "yield_loss_percentage": 5.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Perform Thai Basil SSF Pork Sauce",
+      "product_code": "WPLSPS10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WPOMNIH1000",
+          "ingredient_description": "Pork Mince 85CL In House",
+          "base_meat_qty": 64.350,
+          "meat_percentage": 64.35
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 90.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 10.000,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    }
+  ]
+}

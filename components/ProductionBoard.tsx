@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -32,6 +32,10 @@ import {
 } from '@/lib/allergenRules';
 import { downloadBoardPDF } from '@/lib/pdfExport';
 import { smartAssignKettles, getPreferredKettles } from '@/lib/kettlePreferences';
+import {
+  calculateMeat, recipesMap, subRecipesMap, meatDataLoadError,
+  MEAT_ICON, MEAT_COLORS, type MeatResult,
+} from '@/lib/meatCalculator';
 
 // ── Line config ────────────────────────────────────────────────────────────
 const BOARD_LINES = [
@@ -82,6 +86,7 @@ function rowToBoardItem(row: ExcelRow, index: number): BoardItem {
     type:              'product',
     line:              row.line,
     product:           row.product,
+    itemCode:          row.itemCode ?? '',
     quantity:          row.quantity,
     batches:           row.batches ?? 1,
     batchBreakdown:    row.batchBreakdown ?? `${row.quantity}×1`,
@@ -158,6 +163,7 @@ function ProductCard({
   isHolding = false,
   isDragging = false,
   dragHandleProps = {},
+  showMeat = true,
 }: {
   item: BoardItem;
   position: number;
@@ -169,11 +175,29 @@ function ProductCard({
   isHolding?: boolean;
   isDragging?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement> & { style?: React.CSSProperties };
+  showMeat?: boolean;
 }) {
   const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
   const otherLines = activeLines.filter(l => l !== item.line);
   const aKey       = allergenKey(item);
   const aColours   = ALLERGEN_COLOURS[aKey] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
+
+  // Meat calculations — computed per batch, wrapped in try/catch per spec
+  const allBatchMeat: MeatResult[][] = showMeat
+    ? batchSizes.map(b => calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap))
+    : batchSizes.map(() => []);
+
+  const hasMeat = allBatchMeat.some(r => r.length > 0);
+  const totalCardMeatKg = allBatchMeat.reduce(
+    (sum, results) => sum + results.reduce((s, r) => s + r.qty_kg, 0), 0
+  );
+  // Badges from first batch (structure same for all batches; qty varies)
+  const meatBadges = (allBatchMeat[0] ?? []).map(r => ({
+    icon:   MEAT_ICON[r.meat_type],
+    colors: MEAT_COLORS[r.meat_type],
+    label:  r.meat_type,
+    key:    r.ingredient_code || r.ingredient_description,
+  }));
 
   return (
     <div className={`bg-white rounded-xl overflow-hidden transition-all duration-150 ${
@@ -182,7 +206,7 @@ function ProductCard({
                    'shadow-sm border border-gray-200'
     }`}>
 
-      {/* ── Inline CIP indicator (no separate element — stays in row) ── */}
+      {/* ── Inline CIP indicator ── */}
       {needsCleanBefore && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border-b border-amber-200">
           <svg className="w-3 h-3 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,9 +218,8 @@ function ProductCard({
       )}
 
       {/*
-       * ── DRAG HANDLE (hold here to drag) ──────────────────────────────
+       * ── DRAG HANDLE ──────────────────────────────────────────────────
        * Only this section has touch-action:none and the dnd listeners.
-       * Touching anywhere below this area scrolls the page normally.
        */}
       <div
         {...dragHandleProps}
@@ -216,7 +239,7 @@ function ProductCard({
           )}
         </div>
 
-        {/* Position badge + product name + batch sizes */}
+        {/* Position badge + product name + meat badges + batch sizes */}
         <div className="flex items-start px-3 pt-1 pb-2 gap-2">
           <div className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center
                           rounded-full bg-gray-100 text-[9px] font-bold text-gray-400">
@@ -226,42 +249,153 @@ function ProductCard({
             <p className="font-bold text-gray-900 text-sm leading-snug" title={item.product}>
               {item.product}
             </p>
+
+            {/* Meat type badges */}
+            {showMeat && meatBadges.length > 0 && (
+              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                {meatBadges.map((badge, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: badge.colors.bg, color: badge.colors.text }}
+                  >
+                    <span>{badge.icon}</span>
+                    <span>{badge.label}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Kettle preference badge */}
             {(() => {
-              const preferred = getPreferredKettles(item.product, '');
+              const preferred   = getPreferredKettles(item.product, '');
               if (preferred.length === 0) return null;
-              const shorts     = preferred.map(k => LINE_SHORT[k] ?? k).join('/');
+              const shorts      = preferred.map(k => LINE_SHORT[k] ?? k).join('/');
               const onPreferred = preferred.includes(item.line);
               return (
                 <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${
-                  onPreferred
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-amber-100 text-amber-700'
+                  onPreferred ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                 }`}>
                   {onPreferred ? '✓' : '→'} {shorts}
                 </span>
               );
             })()}
+
             <p className="text-[11px] text-gray-500 font-mono mt-0.5">
               <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
             </p>
-            <div className="mt-2 space-y-1 bg-indigo-50 rounded-lg px-2 py-1.5">
-              {batchSizes.map((b, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-indigo-400 font-mono w-5 flex-shrink-0">
-                    *{i + 1}
-                  </span>
-                  <span className="text-[12px] font-mono font-bold text-indigo-700 tabular-nums">
-                    {b.kg.toLocaleString()} kg
-                  </span>
-                </div>
-              ))}
+
+            {/* Batch rows with per-batch meat breakdown */}
+            <div className="mt-2 space-y-1.5 bg-indigo-50 rounded-lg px-2 py-1.5">
+              {batchSizes.map((b, i) => {
+                const meatForBatch = allBatchMeat[i] ?? [];
+                return (
+                  <div key={i}>
+                    {/* Batch number + kg */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-indigo-400 font-mono w-5 flex-shrink-0">
+                        *{i + 1}
+                      </span>
+                      <span className="text-[12px] font-mono font-bold text-indigo-700 tabular-nums">
+                        {b.kg.toLocaleString()} kg
+                      </span>
+                    </div>
+                    {/* Meat breakdown below the kg */}
+                    {showMeat && meatForBatch.length > 0 && (
+                      <div className="pl-7 mt-0.5 space-y-px">
+                        {meatForBatch[0].is_sub_recipe ? (
+                          // Sub-recipe chain display
+                          <>
+                            <div className="flex items-start gap-1">
+                              <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
+                              <span className="text-[9px] text-indigo-600 leading-tight">
+                                {meatForBatch[0].sub_recipe_label}{' '}
+                                <span className="text-indigo-400">(sub)</span>
+                              </span>
+                            </div>
+                            {meatForBatch[0].sub_qty_kg !== null && (
+                              <div className="flex items-center pl-3 gap-1">
+                                <span className="text-[9px] text-gray-400">→</span>
+                                <span className="text-[9px] font-mono font-bold text-indigo-600 tabular-nums">
+                                  {meatForBatch[0].sub_qty_kg.toFixed(2)} kg
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-start gap-1">
+                              <span className="text-[9px] text-gray-400 flex-shrink-0">Raw:</span>
+                              <span className="text-[9px] text-gray-600 leading-tight truncate">
+                                {meatForBatch[0].ingredient_description}
+                              </span>
+                            </div>
+                            <div className="flex items-center pl-3 gap-1">
+                              <span className="text-[9px] text-gray-400">→</span>
+                              <span className="text-[9px] font-mono font-bold text-rose-700 tabular-nums">
+                                {meatForBatch[0].qty_kg.toFixed(2)} kg
+                              </span>
+                            </div>
+                          </>
+                        ) : meatForBatch.length > 1 ? (
+                          // Multi-meat display
+                          <>
+                            {meatForBatch.map((m, mi) => (
+                              <div key={mi} className="flex items-center gap-1">
+                                <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[m.meat_type]}</span>
+                                <span className="text-[9px] text-gray-600 flex-1 leading-tight min-w-0 truncate">
+                                  {m.ingredient_description}:
+                                </span>
+                                <span className="text-[9px] font-mono font-bold text-gray-700 tabular-nums flex-shrink-0">
+                                  {m.qty_kg.toFixed(2)} kg
+                                </span>
+                              </div>
+                            ))}
+                            <div className="flex items-center pt-px border-t border-indigo-100 gap-1">
+                              <span className="text-[9px] font-semibold text-gray-500 flex-1">Total meat:</span>
+                              <span className="text-[9px] font-mono font-bold text-gray-700 tabular-nums">
+                                {meatForBatch.reduce((s, m) => s + m.qty_kg, 0).toFixed(2)} kg
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          // Single direct meat
+                          <>
+                            <div className="flex items-start gap-1">
+                              <span className="text-[9px] leading-none flex-shrink-0">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
+                              <span className="text-[9px] text-gray-600 leading-tight truncate">
+                                {meatForBatch[0].ingredient_description}
+                              </span>
+                            </div>
+                            <div className="flex items-center pl-3 gap-1">
+                              <span className="text-[9px] text-gray-400">→</span>
+                              <span className="text-[9px] font-mono font-bold text-gray-700 tabular-nums">
+                                {meatForBatch[0].qty_kg.toFixed(2)} kg
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
       {/* ── END DRAG HANDLE ── */}
 
-      {/* ── Allergen badge + selector (scrollable, not part of drag handle) ── */}
+      {/* ── Total meat this card ── */}
+      {showMeat && hasMeat && (
+        <div className="px-3 pb-1.5">
+          <div className="flex items-center justify-between bg-rose-50 rounded-lg px-2 py-1 border border-rose-100">
+            <span className="text-[9px] font-semibold text-rose-600">Total meat this card</span>
+            <span className="text-[10px] font-mono font-bold text-rose-700 tabular-nums">
+              {totalCardMeatKg.toFixed(2)} kg
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Allergen badge + selector ── */}
       <div className="px-3 pb-2">
         <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border mb-1 ${aColours.badge}`}>
           {ALLERGEN_OPTIONS.find(o => o.value === aKey)?.label ?? aKey}
@@ -332,6 +466,7 @@ function SortableCard({
   onAllergenChange,
   activeLines,
   onMoveTo,
+  showMeat,
 }: {
   item: BoardItem;
   position: number;
@@ -340,6 +475,7 @@ function SortableCard({
   onAllergenChange: (id: string, allergen: string) => void;
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
+  showMeat: boolean;
 }) {
   const [isHolding, setIsHolding] = useState(false);
 
@@ -387,6 +523,7 @@ function SortableCard({
         dragHandleProps={dragHandleProps}
         isHolding={isHolding && !isDragging}
         isDragging={isDragging}
+        showMeat={showMeat}
       />
     </div>
   );
@@ -395,7 +532,7 @@ function SortableCard({
 // ── Whiteboard column ──────────────────────────────────────────────────────
 function LineColumn({
   line, items, onTimeChange, onAllergenChange,
-  isDropTarget, blockedItem, activeLines, onMoveTo,
+  isDropTarget, blockedItem, activeLines, onMoveTo, showMeat,
 }: {
   line: string;
   items: BoardItem[];
@@ -405,6 +542,7 @@ function LineColumn({
   blockedItem: BoardItem | null;
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
+  showMeat: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: line });
   const totalKg     = items.reduce((s, i) => s + i.quantity, 0);
@@ -467,6 +605,7 @@ function LineColumn({
               onAllergenChange={onAllergenChange}
               activeLines={activeLines}
               onMoveTo={onMoveTo}
+              showMeat={showMeat}
             />
           ))}
           {items.length === 0 && (
@@ -493,7 +632,11 @@ function LineColumn({
 interface ProductionBoardProps { data: ExcelRow[]; }
 
 export function ProductionBoard({ data }: ProductionBoardProps) {
-  const boardRows = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
+  const boardRows     = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
+  const nonKettleRows = useMemo(
+    () => data.filter(r => r.quantity > 0 && !BOARD_LINES.includes(r.line)),
+    [data],
+  );
 
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
@@ -507,16 +650,78 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   // Derived from live state so it updates after smart assign
   const activeLines = BOARD_LINES.filter(line => (allItems[line]?.length ?? 0) > 0);
 
-  const [activeId,    setActiveId]    = useState<string | null>(null);
-  const [overLine,    setOverLine]    = useState<string | null>(null);
-  const [blockedLine, setBlockedLine] = useState<string | null>(null);
-  const [pdfLoading,  setPdfLoading]  = useState(false);
-  const snapshot     = useRef<Record<string, BoardItem[]> | null>(null);
-  const lastOverRef  = useRef<string | null>(null);
-  const boardRef     = useRef<HTMLDivElement>(null);
+  const [activeId,       setActiveId]       = useState<string | null>(null);
+  const [overLine,       setOverLine]        = useState<string | null>(null);
+  const [blockedLine,    setBlockedLine]     = useState<string | null>(null);
+  const [pdfLoading,     setPdfLoading]      = useState(false);
+  const [showMeat,       setShowMeat]        = useState(true);
+  const [meatSummaryOpen, setMeatSummaryOpen] = useState(false);
+  const snapshot    = useRef<Record<string, BoardItem[]> | null>(null);
+  const lastOverRef = useRef<string | null>(null);
+  const boardRef    = useRef<HTMLDivElement>(null);
+
+  // Sync showMeat with localStorage (client-only)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('showMeat');
+      if (stored !== null) setShowMeat(stored === 'true');
+    } catch { /* ignore SSR/private-mode */ }
+  }, []);
+
+  function toggleMeat() {
+    setShowMeat(prev => {
+      const next = !prev;
+      try { localStorage.setItem('showMeat', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  // Aggregate meat across all items for the summary panel
+  const meatSummary = useMemo(() => {
+    const agg = new Map<string, { desc: string; total: number; meat_type: MeatResult['meat_type'] }>();
+    const addResult = (r: MeatResult) => {
+      const key = r.ingredient_code || r.ingredient_description;
+      const ex  = agg.get(key);
+      agg.set(key, { desc: r.ingredient_description, total: (ex?.total ?? 0) + r.qty_kg, meat_type: r.meat_type });
+    };
+    // Kettle items — per physical batch
+    for (const line of BOARD_LINES) {
+      for (const item of (allItems[line] ?? [])) {
+        try {
+          for (const batch of parseBatchSizes(item.batchBreakdown, item.batches, item.quantity)) {
+            for (const r of calculateMeat(item.itemCode, batch.kg, recipesMap, subRecipesMap)) addResult(r);
+          }
+        } catch { /* skip */ }
+      }
+    }
+    // Non-kettle items — by total quantity
+    for (const row of nonKettleRows) {
+      try {
+        for (const r of calculateMeat(row.itemCode ?? '', row.quantity, recipesMap, subRecipesMap)) addResult(r);
+      } catch { /* skip */ }
+    }
+    return [...agg.entries()]
+      .map(([code, v]) => ({ code, desc: v.desc, total: Math.round(v.total * 100) / 100, meat_type: v.meat_type }))
+      .sort((a, b) => b.total - a.total);
+  }, [allItems, nonKettleRows]);
+
+  // Pre-compute meat data for non-kettle table
+  const nonKettleMeatData = useMemo(
+    () => nonKettleRows.map(row => ({
+      row,
+      meatResults: calculateMeat(row.itemCode ?? '', row.quantity, recipesMap, subRecipesMap),
+      inJson:      recipesMap.has((row.itemCode ?? '').toLowerCase().trim()),
+    })),
+    [nonKettleRows],
+  );
+  const nonKettleTotalMeat = useMemo(
+    () => nonKettleMeatData.reduce((sum, d) => sum + d.meatResults.reduce((s, m) => s + m.qty_kg, 0), 0),
+    [nonKettleMeatData],
+  );
 
   // Equalise card heights across columns so cards at the same position
   // (row 1, row 2, …) are the same height regardless of batch count.
+  // Re-runs when showMeat changes because meat rows alter card height.
   useLayoutEffect(() => {
     if (activeId || !boardRef.current) return;
     const board = boardRef.current;
@@ -528,7 +733,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       const maxH = Math.max(...group.map(el => el.offsetHeight));
       group.forEach(el => { el.style.minHeight = `${maxH}px`; });
     }
-  }, [allItems, activeId]);
+  }, [allItems, activeId, showMeat]);
 
   /*
    * SENSORS:
@@ -709,6 +914,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   }
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
@@ -717,6 +923,118 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      {/* ── Meat data load error banner ── */}
+      {meatDataLoadError && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+          <span className="text-amber-600 text-sm">⚠</span>
+          <span className="text-xs text-amber-700">
+            Meat data unavailable — recipes.json could not be loaded.
+          </span>
+        </div>
+      )}
+
+      {/* ── Meat Requirements Summary panel ── */}
+      <div className="mb-4 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <button
+          onClick={() => setMeatSummaryOpen(v => !v)}
+          aria-expanded={meatSummaryOpen}
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🥩</span>
+            <span className="font-semibold text-gray-700 text-sm">Meat Requirements Summary</span>
+            {meatSummary.length > 0 && (
+              <span className="text-xs text-gray-400">
+                ({meatSummary.length} ingredient{meatSummary.length !== 1 ? 's' : ''})
+              </span>
+            )}
+          </div>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${meatSummaryOpen ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {meatSummaryOpen && (
+          <div className="border-t border-gray-200 p-4">
+            {meatSummary.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-2">No meat ingredients found.</p>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left pb-2 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Meat Ingredient</th>
+                        <th className="text-left pb-2 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Code</th>
+                        <th className="text-right pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Qty (kg)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {meatSummary.map((entry, i) => (
+                        <tr key={i} className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5"
+                                style={{ backgroundColor: MEAT_COLORS[entry.meat_type].bg, color: MEAT_COLORS[entry.meat_type].text }}
+                              >
+                                {MEAT_ICON[entry.meat_type]} {entry.meat_type}
+                              </span>
+                              <span className="text-sm text-gray-700">{entry.desc}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs text-gray-500">{entry.code || '—'}</td>
+                          <td className="py-2 text-right font-mono font-bold text-gray-800 tabular-nums">
+                            {entry.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 bg-green-50">
+                        <td colSpan={2} className="py-2 pr-4 font-bold text-green-800 text-sm">Grand Total</td>
+                        <td className="py-2 text-right font-mono font-bold text-green-800 tabular-nums">
+                          {meatSummary.reduce((s, e) => s + e.total, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                {/* Mobile cards */}
+                <div className="sm:hidden space-y-2">
+                  {meatSummary.map((entry, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <span
+                          className="text-[8px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 mb-0.5"
+                          style={{ backgroundColor: MEAT_COLORS[entry.meat_type].bg, color: MEAT_COLORS[entry.meat_type].text }}
+                        >
+                          {MEAT_ICON[entry.meat_type]} {entry.meat_type}
+                        </span>
+                        <p className="text-sm font-semibold text-gray-700 truncate">{entry.desc}</p>
+                        <p className="text-xs text-gray-400 font-mono">{entry.code || '—'}</p>
+                      </div>
+                      <span className="font-mono font-bold text-gray-800 tabular-nums text-sm flex-shrink-0">
+                        {entry.total.toFixed(2)} kg
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2 border border-green-200">
+                    <span className="font-bold text-green-800 text-sm">Grand Total</span>
+                    <span className="font-mono font-bold text-green-800 tabular-nums">
+                      {meatSummary.reduce((s, e) => s + e.total, 0).toFixed(2)} kg
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Toolbar ── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <p className="text-xs text-gray-400 flex-1">
@@ -724,6 +1042,18 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
           <strong> Move→</strong> buttons to transfer between lines ·
           swipe horizontally to see all kettles
         </p>
+        <button
+          onClick={toggleMeat}
+          aria-label={showMeat ? 'Hide meat quantities' : 'Show meat quantities'}
+          className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
+                     rounded-xl transition-all shadow-sm w-full sm:w-auto ${
+            showMeat
+              ? 'text-white bg-rose-500 hover:bg-rose-600 active:scale-95'
+              : 'text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 active:scale-95'
+          }`}
+        >
+          🥩 {showMeat ? 'Hide Meat' : 'Show Meat'}
+        </button>
         <button
           onClick={handleSmartAssign}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
@@ -794,6 +1124,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
                 blockedItem={blocked}
                 activeLines={activeLines}
                 onMoveTo={moveItem}
+                showMeat={showMeat}
               />
             );
           })}
@@ -804,10 +1135,103 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
         {activeItem && (
           <div className="rotate-2 shadow-2xl w-52 opacity-95 ring-2 ring-indigo-400 rounded-xl">
-            <ProductCard item={activeItem} position={0} />
+            <ProductCard item={activeItem} position={0} showMeat={false} />
           </div>
         )}
       </DragOverlay>
     </DndContext>
+
+    {/* ── Non-Kettle Items section ── */}
+
+    {nonKettleRows.length > 0 && (
+      <div className="mt-6">
+        <h3 className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
+          Non-Kettle Items
+          <span className="text-sm font-normal text-gray-400">
+            ({nonKettleRows.length} item{nonKettleRows.length !== 1 ? 's' : ''})
+          </span>
+        </h3>
+        <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+          <table className="w-full min-w-[580px] text-sm">
+            <thead>
+              <tr className="bg-slate-800 text-white">
+                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wider w-8">#</th>
+                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">Product Name</th>
+                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">WIP Code</th>
+                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">Line</th>
+                <th className="text-right px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">Qty (kg)</th>
+                {showMeat && <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">Meat Type</th>}
+                {showMeat && <th className="text-right px-3 py-2.5 text-xs font-semibold uppercase tracking-wider">Meat Qty (kg)</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {nonKettleMeatData.flatMap(({ row, meatResults, inJson }, idx) => {
+                const shade = idx % 2 === 0;
+                const bg    = shade ? 'bg-white' : 'bg-gray-50';
+                // No meat found
+                if (!showMeat || meatResults.length === 0) {
+                  return [(
+                    <tr key={idx} className={`${bg} border-b border-gray-100`}>
+                      <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800">{row.product}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{row.itemCode || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{row.line}</td>
+                      <td className="px-3 py-2 text-right font-mono font-bold text-gray-700 tabular-nums">{row.quantity.toLocaleString()}</td>
+                      {showMeat && <td className="px-3 py-2 text-xs text-gray-400 italic">{inJson ? '—' : 'No recipe data'}</td>}
+                      {showMeat && <td className="px-3 py-2 text-right text-gray-400">—</td>}
+                    </tr>
+                  )];
+                }
+                // One row per meat ingredient
+                return meatResults.map((m, mi) => (
+                  <tr key={`${idx}-${mi}`} className={`${bg} border-b border-gray-100`}>
+                    {mi === 0 ? (
+                      <>
+                        <td className="px-3 py-2 text-xs text-gray-400 align-top">{idx + 1}</td>
+                        <td className="px-3 py-2 font-medium text-gray-800 align-top">{row.product}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500 align-top">{row.itemCode || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500 align-top">{row.line}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-gray-700 tabular-nums align-top">{row.quantity.toLocaleString()}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-1" />
+                        <td className="px-3 py-1 text-xs text-gray-400 pl-5 italic">↳</td>
+                        <td className="px-3 py-1" />
+                        <td className="px-3 py-1" />
+                        <td className="px-3 py-1" />
+                      </>
+                    )}
+                    <td className="px-3 py-2">
+                      <div className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: MEAT_COLORS[m.meat_type].bg, color: MEAT_COLORS[m.meat_type].text }}>
+                        {MEAT_ICON[m.meat_type]} {m.meat_type}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">{m.ingredient_description}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono font-bold text-gray-700 tabular-nums align-middle">
+                      {m.qty_kg.toFixed(2)}
+                    </td>
+                  </tr>
+                ));
+              })}
+            </tbody>
+            {showMeat && (
+              <tfoot>
+                <tr className="bg-green-50 border-t-2 border-green-200">
+                  <td colSpan={5} className="px-3 py-2 font-bold text-green-800 text-sm">
+                    Total meat (non-kettle)
+                  </td>
+                  <td colSpan={2} className="px-3 py-2 text-right font-mono font-bold text-green-800 tabular-nums">
+                    {nonKettleTotalMeat.toFixed(2)} kg
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
