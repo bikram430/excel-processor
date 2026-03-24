@@ -36,8 +36,29 @@ export default function HomePage() {
   const [bcBatchSize, setBcBatchSize]       = useState(1800);
   const [bcInput, setBcInput]               = useState('1800');
 
+  /**
+   * Combine rows that share the same line + item code (or product name when no
+   * code) before running batch calculations.  This ensures that if the same WIP
+   * code appears twice in the plan (e.g. two separate Diced Potato lines on WOK)
+   * we produce ONE combined row with the correct total qty, then split it into
+   * the right number of batches for that combined volume.
+   */
+  function deduplicateByItemCode(rows: ExcelRow[]): ExcelRow[] {
+    const map = new Map<string, ExcelRow>();
+    for (const row of rows) {
+      const key = `${row.line}|||${(row.itemCode || row.product).toUpperCase().trim()}`;
+      const existing = map.get(key);
+      if (existing) {
+        map.set(key, { ...existing, quantity: existing.quantity + row.quantity });
+      } else {
+        map.set(key, { ...row });
+      }
+    }
+    return [...map.values()];
+  }
+
   function enrichAndStore(rows: ExcelRow[], bcCap: number) {
-    const enriched = calculateBatches(rows, bcCap);
+    const enriched = calculateBatches(deduplicateByItemCode(rows), bcCap);
     setEnrichedRows(enriched);
   }
 
