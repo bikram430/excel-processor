@@ -35,7 +35,7 @@ const CQC_PRODUCTS: Record<string, CQCSpec> = {
 const MEAT_SAUCE_EPP_CODE = 'WMTSCP10000';
 const BUTTER_CHICKEN_CODE = 'WBSCCP1000';
 const BECHAMEL_CODE       = 'WBLSCCP10000';
-const LOW_CAPACITY_PRODUCTS = ['VEGAN LASAGNE', 'MINESTRONE SOUP'];
+const LOW_CAPACITY_PRODUCTS = ['VEGAN LASAGNE', 'MINESTRONE SOUP', 'CHICKEN NOODLE SOUP'];
 const DEFAULT_CAP = 2000;
 
 // ── WOK / Oven / Misc per-product max batch sizes ──────────────────────────
@@ -171,7 +171,8 @@ export function calculateBatch(
   if (codeUpper === BECHAMEL_CODE)                          return generalBatch(qty, 1880);
   if (codeUpper === BUTTER_CHICKEN_CODE)                    return generalBatch(qty, butterChickenCap);
   if (LOW_CAPACITY_PRODUCTS.some(p => productUpper.includes(p))) return lowCapBatch(qty);
-  if (RICE_PRODUCTS.has(codeUpper))                         return riceBatch(qty);
+  if (productUpper.includes('IMPROVED CHEESE'))               return generalBatch(qty, 1800);
+  if (RICE_PRODUCTS.has(codeUpper))                           return riceBatch(qty);
   const wokCap = WOK_BATCH_CAPS[codeUpper];
   if (wokCap)                                               return generalBatch(qty, wokCap);
 

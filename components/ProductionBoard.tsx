@@ -83,12 +83,12 @@ const ALLERGEN_COLOURS: Record<string, { badge: string; select: string }> = {
 
 // ── Allergen title text colours (used on card headings) ────────────────────
 const ALLERGEN_TITLE_COLORS: Record<string, string> = {
-  DAIRY:         '#B45309', // amber-700 — warm orange-brown
-  FISH:          '#C2410C', // orange-700 — warm orange
-  SOY:           '#7C3AED', // violet-600 — purple
-  SULPHITE:      '#64748B', // slate-500 — gray-blue
-  WHEAT:         '#2563EB', // blue-600
-  ALLERGEN_FREE: '#374151', // gray-700 — default
+  DAIRY:         '#DC2626', // red-600
+  FISH:          '#EA580C', // orange-600
+  SOY:           '#7C3AED', // violet-600
+  SULPHITE:      '#0F766E', // teal-700
+  WHEAT:         '#1D4ED8', // blue-700
+  ALLERGEN_FREE: '#15803D', // green-700
 };
 
 function getAllergenTitleStyle(allergens: string[]): React.CSSProperties {
@@ -394,7 +394,7 @@ function ProductCard({
           </div>
           <div className="flex-1 min-w-0">
             <p
-              className="font-bold text-sm leading-snug truncate"
+              className="font-bold text-sm leading-snug break-words"
               style={titleStyle}
               title={item.product}
             >
