@@ -167,13 +167,11 @@ export function getProductAllergens(product: string, itemCode = ''): string[] {
   return found;
 }
 
-/** Returns true if a cleaning step is needed between prev → next */
+/** Returns true if a cleaning step is needed between prev → next.
+ *  CIP is required if prev had any allergen that next does NOT share. */
 export function needsCleaning(prev: BoardItem, next: BoardItem): boolean {
-  const prevKey = prev.allergens[0] ?? 'ALLERGEN_FREE';
-  const nextKey = next.allergens[0] ?? 'ALLERGEN_FREE';
-  if (prevKey === 'ALLERGEN_FREE') return false;
-  if (prevKey === nextKey)         return false;
-  return true;
+  if (!prev.allergens.length) return false; // prev allergen-free → no CIP needed
+  return prev.allergens.some(a => !next.allergens.includes(a));
 }
 
 /**

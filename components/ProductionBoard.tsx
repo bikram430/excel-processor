@@ -126,6 +126,25 @@ const ALLERGEN_SORT_ORDER: Record<string, number> = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * If the same item code (or product name when no code) appears more than once
+ * within the same line, combine their quantities into a single row so batch
+ * calculations use the total.  Sequence of the first occurrence is preserved.
+ */
+function deduplicateRows(rows: ExcelRow[]): ExcelRow[] {
+  const map = new Map<string, ExcelRow>();
+  for (const row of rows) {
+    const key = (row.itemCode || row.product).toUpperCase().trim();
+    const existing = map.get(key);
+    if (existing) {
+      map.set(key, { ...existing, quantity: existing.quantity + row.quantity });
+    } else {
+      map.set(key, { ...row });
+    }
+  }
+  return [...map.values()];
+}
+
 /** Sort rows by the Sequence column from the production plan (ascending). */
 function sortRowsBySequence(rows: ExcelRow[]): ExcelRow[] {
   return [...rows].sort((a, b) => {
@@ -264,7 +283,7 @@ function ProductCard({
   position: number;
   needsCleanBefore?: boolean;
   onTimeChange?: (id: string, time: string) => void;
-  onAllergenChange?: (id: string, allergen: string) => void;
+  onAllergenChange?: (id: string, allergens: string[]) => void;
   activeLines?: string[];
   onMoveTo?: (id: string, targetLine: string) => void;
   isHolding?: boolean;
@@ -272,6 +291,7 @@ function ProductCard({
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement> & { style?: React.CSSProperties };
   showMeat?: boolean;
 }) {
+  const hiddenTimeRef = useRef<HTMLInputElement>(null);
   const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
   const otherLines = activeLines.filter(l => l !== item.line);
   const aKey       = allergenKey(item);
@@ -490,28 +510,60 @@ function ProductCard({
         </div>
       )}
 
-      {/* ── Allergen badge + selector ── */}
+      {/* ── Allergen badges (multi) + add selector ── */}
       <div className="px-3 pb-2">
-        <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border mb-1 ${aColours.badge}`}>
-          {ALLERGEN_OPTIONS.find(o => o.value === aKey)?.label ?? aKey}
-        </span>
-        {onAllergenChange && (
-          <select
-            value={aKey}
-            onChange={e => onAllergenChange(item.id, e.target.value)}
-            className={`w-full text-[10px] border border-gray-200 rounded-lg px-2 py-1
-                       focus:outline-none focus:ring-1 focus:ring-indigo-400 ${aColours.select}`}
-          >
-            {ALLERGEN_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex flex-wrap gap-1 mb-1">
+          {item.allergens.length === 0 ? (
+            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${ALLERGEN_COLOURS.ALLERGEN_FREE.badge}`}>
+              Allergen Free
+            </span>
+          ) : (
+            item.allergens.map(a => {
+              const opt = ALLERGEN_OPTIONS.find(o => o.value === a);
+              const aC  = ALLERGEN_COLOURS[a] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
+              return (
+                <span key={a} className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${aC.badge}`}>
+                  {opt?.label ?? a}
+                  {onAllergenChange && (
+                    <button
+                      type="button"
+                      onClick={() => onAllergenChange(item.id, item.allergens.filter(x => x !== a))}
+                      className="ml-0.5 leading-none hover:opacity-60"
+                      aria-label={`Remove ${a}`}
+                    >×</button>
+                  )}
+                </span>
+              );
+            })
+          )}
+        </div>
+        {onAllergenChange && (() => {
+          const available = ALLERGEN_OPTIONS.filter(
+            o => o.value !== 'ALLERGEN_FREE' && !item.allergens.includes(o.value)
+          );
+          if (available.length === 0) return null;
+          return (
+            <select
+              value=""
+              onChange={e => {
+                if (!e.target.value) return;
+                onAllergenChange(item.id, [...item.allergens, e.target.value]);
+              }}
+              className="w-full text-[10px] border border-gray-200 rounded-lg px-2 py-1
+                         focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-500 bg-white"
+            >
+              <option value="">+ Add allergen…</option>
+              {available.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          );
+        })()}
       </div>
 
-      {/* ── Start-time input (24h text) ── */}
+      {/* ── Start-time input (24h text + clock picker) ── */}
       {onTimeChange && (
-        <div className="px-3 pb-2 flex items-center gap-2">
+        <div className="px-3 pb-2 flex items-center gap-1.5">
           <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
           <input
             type="text"
@@ -532,6 +584,29 @@ function ProductCard({
             }}
             className="flex-1 min-w-0 text-[11px] font-mono text-gray-700 border border-gray-200
                        rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+          {/* Clock icon — opens native time picker */}
+          <button
+            type="button"
+            onClick={() => hiddenTimeRef.current?.showPicker?.()}
+            className="text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
+            title="Open time picker"
+            aria-label="Open time picker"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          {/* Hidden time input for the native picker — value always HH:MM */}
+          <input
+            ref={hiddenTimeRef}
+            type="time"
+            className="sr-only"
+            value={item.time || ''}
+            onChange={e => onTimeChange(item.id, e.target.value)}
+            tabIndex={-1}
+            aria-hidden="true"
           />
         </div>
       )}
@@ -580,7 +655,7 @@ function SortableCard({
   position: number;
   needsCleanBefore: boolean;
   onTimeChange: (id: string, time: string) => void;
-  onAllergenChange: (id: string, allergen: string) => void;
+  onAllergenChange: (id: string, allergens: string[]) => void;
   activeLines: string[];
   onMoveTo: (id: string, targetLine: string) => void;
   showMeat: boolean;
@@ -645,7 +720,7 @@ function LineColumn({
   line: string;
   items: BoardItem[];
   onTimeChange: (id: string, time: string) => void;
-  onAllergenChange: (id: string, allergen: string) => void;
+  onAllergenChange: (id: string, allergens: string[]) => void;
   isDropTarget: boolean;
   blockedItem: BoardItem | null;
   activeLines: string[];
@@ -760,7 +835,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
     for (const line of BOARD_LINES) {
-      const rows  = sortRowsBySequence(boardRows.filter(r => r.line === line));
+      const rows  = sortRowsBySequence(deduplicateRows(boardRows.filter(r => r.line === line)));
       const items = rows.map((r, i) => rowToBoardItem(r, i));
       // K4 and Blendtech: vegan-first + meat-type grouping + allergen grouping
       // All other lines: plain production-plan sequence order
@@ -884,15 +959,13 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  function handleAllergenChange(id: string, allergenValue: string) {
+  function handleAllergenChange(id: string, allergens: string[]) {
     setAllItems(prev => {
       const next = { ...prev };
       for (const line of Object.keys(next)) {
         if (next[line].some(i => i.id === id)) {
           next[line] = next[line].map(i =>
-            i.id === id
-              ? { ...i, allergens: allergenValue === 'ALLERGEN_FREE' ? [] : [allergenValue] }
-              : i
+            i.id === id ? { ...i, allergens } : i
           );
           break;
         }

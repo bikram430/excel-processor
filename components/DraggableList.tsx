@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -40,6 +40,7 @@ function SortableCard({
   position: number;
   onTimeChange: (id: string, time: string) => void;
 }) {
+  const hiddenTimeRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
 
@@ -102,8 +103,8 @@ function SortableCard({
           )}
         </div>
 
-        {/* Time input — plain text HH:MM (24h) */}
-        <div className="flex items-center px-3 border-l border-gray-100">
+        {/* Time input — 24h text + clock picker button */}
+        <div className="flex items-center gap-1 px-3 border-l border-gray-100">
           <input
             type="text"
             value={item.time}
@@ -123,6 +124,27 @@ function SortableCard({
             }}
             className="text-xs font-mono text-gray-700 border border-gray-200 rounded
                        px-1.5 py-1 w-16 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+          <button
+            type="button"
+            onClick={() => hiddenTimeRef.current?.showPicker?.()}
+            className="text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
+            title="Open time picker"
+            aria-label="Open time picker"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <input
+            ref={hiddenTimeRef}
+            type="time"
+            className="sr-only"
+            value={item.time || ''}
+            onChange={(e) => onTimeChange(item.id, e.target.value)}
+            tabIndex={-1}
+            aria-hidden="true"
           />
         </div>
       </div>

@@ -38,6 +38,36 @@ const BECHAMEL_CODE       = 'WBLSCCP10000';
 const LOW_CAPACITY_PRODUCTS = ['VEGAN LASAGNE', 'MINESTRONE SOUP'];
 const DEFAULT_CAP = 2000;
 
+// ── WOK / Oven / Misc per-product max batch sizes ──────────────────────────
+// Items not in this map use the default generalBatch cap.
+const WOK_BATCH_CAPS: Record<string, number> = {
+  'WCFRCA10000':  180,  // Chinese Fried Rice
+  'WDPSR10000':   170,  // Diced Potato Seasoned Roasted
+  'WEFRCI10000':  160,  // Egg Fried Rice
+  'WRHALFCP1000': 180,  // Roasted Half Chat Potatoes
+  'WSAPMIX1000':  100,  // Spinach and Peas Mix
+  'WSCEGPL1000':   70,  // Scrambled Eggs Plain
+  'WDIPCR10000':  150,  // Roasted Bombay Potatoes
+  'WRMCARO1000':  100,  // Roasted Mixed Capsicum and Red Onion
+  'WCOMOC10000':   50,  // Couscous Medium Cooked
+  'WSPPAR10000':  120,  // Spinach Parsley Roast
+  'WSPDSOR1000':  160,  // Sweet Potato Diced 25mm Roasted
+  'WRCBCSC1000':  100,  // Red Capsicum Bowl Chopped Sous Vide Cooked
+};
+
+// ── Rice products — max 220 kg/batch, batch size rounded up to nearest 5 ──
+const RICE_MAX = 220;
+const RICE_PRODUCTS = new Set([
+  'WPIRGN90000',  // Rice Pilau Cooked
+  'WBRCXCD1000',  // Biryani Rice Cooked
+  'WJWRICE1000',  // Jewelled Rice
+  'WDRDRCD1000',  // Dirty Rice
+]);
+
+function roundTo5(n: number): number {
+  return Math.ceil(n / 5) * 5;
+}
+
 export interface BatchResult {
   batches: number;
   batchBreakdown: string;
@@ -116,6 +146,13 @@ function lowCapBatch(qty: number): BatchResult {
   return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
 }
 
+// ── Rice batch — max 220 kg, size rounded up to nearest 5 ─────────────────
+function riceBatch(qty: number): BatchResult {
+  const n        = Math.max(Math.ceil(qty / RICE_MAX), 1);
+  const perBatch = roundTo5(Math.ceil(qty / n));
+  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 export function calculateBatch(
   product: string,
@@ -134,6 +171,9 @@ export function calculateBatch(
   if (codeUpper === BECHAMEL_CODE)                          return generalBatch(qty, 1880);
   if (codeUpper === BUTTER_CHICKEN_CODE)                    return generalBatch(qty, butterChickenCap);
   if (LOW_CAPACITY_PRODUCTS.some(p => productUpper.includes(p))) return lowCapBatch(qty);
+  if (RICE_PRODUCTS.has(codeUpper))                         return riceBatch(qty);
+  const wokCap = WOK_BATCH_CAPS[codeUpper];
+  if (wokCap)                                               return generalBatch(qty, wokCap);
 
   return generalBatch(qty, DEFAULT_CAP);
 }

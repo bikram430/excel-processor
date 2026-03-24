@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0",
-    "total_recipes": 51,
+    "total_recipes": 52,
     "last_updated": "2026-03-24",
     "batch_calculation_formula": {
       "description": "To calculate meat qty for any desired finished batch size",
@@ -1102,6 +1102,33 @@
           "ingredient_description": "Pork Mince 85CL In House",
           "base_meat_qty": 64.350,
           "meat_percentage": 64.35
+        }
+      ],
+      "recipe_base": {
+        "total_input": 100.000,
+        "total_input_percentage": 100.00,
+        "finished_yield": 90.000,
+        "finished_yield_percentage": 90.00,
+        "yield_loss": 10.000,
+        "yield_loss_percentage": 10.00
+      },
+      "sub_recipe": false
+    },
+    {
+      "product": "Chinese Fried Rice",
+      "product_code": "WCFRCA10000",
+      "meat_ingredients": [
+        {
+          "ingredient_code": "WCSPCA10000",
+          "ingredient_description": "Char Sui Pork Coles",
+          "base_meat_qty": 8.150,
+          "meat_percentage": 8.15
+        },
+        {
+          "ingredient_code": "WCSCCA100000",
+          "ingredient_description": "Char Sui Chicken Coles",
+          "base_meat_qty": 8.150,
+          "meat_percentage": 8.15
         }
       ],
       "recipe_base": {
