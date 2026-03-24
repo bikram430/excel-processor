@@ -258,17 +258,27 @@ function buildLineSheet(line: string, items: BoardItem[]): any {
 
   // ── Products ──
   let pos = 0;
+  let lastWasCleaning = false;
+  const rowBreaks: { r: number }[] = [];
+
   for (const entry of insertCleaningSteps(items)) {
     if (entry.type === 'cleaning') {
+      // Break before the CIP banner so it lands at the top of the next page
+      // (together with the product that follows it)
+      if (pos > 0) rowBreaks.push({ r: row - 1 });
       ws[enc(row, 0)] = mkCell('⚠   CIP / Cleaning Required Before Next Product', sCleaning());
       for (let c = 1; c < W.NCOLS; c++) ws[enc(row, c)] = mkCell('', sCleaning());
       merges.push({ s: { r: row, c: 0 }, e: { r: row, c: W.NCOLS - 1 } });
       row++;
+      lastWasCleaning = true;
       continue;
     }
 
     const item  = entry as BoardItem;
     pos++;
+    // If no preceding CIP, still break between products to keep batches together
+    if (pos > 1 && !lastWasCleaning) rowBreaks.push({ r: row - 1 });
+    lastWasCleaning = false;
     const shade = pos % 2 === 0;
     const sizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
     const algDisp = allergenDisplay(item.allergens);
@@ -318,6 +328,20 @@ function buildLineSheet(line: string, items: BoardItem[]): any {
     { wch: 16 },  // Allergen
   ];
   ws['!rows'] = [{ hpt: 28 }, { hpt: 20 }, { hpt: 18 }];
+
+  // ── Print / page setup ──
+  // A3 landscape, fit to one page wide; manual breaks keep every product's
+  // batch rows together, and print_titles repeats the kettle header on each page.
+  ws['!pageSetup'] = {
+    paperSize:   8,            // 8 = A3
+    orientation: 'landscape',
+    fitToPage:   true,
+    fitToWidth:  1,            // fit all columns on one page wide
+    fitToHeight: 0,            // unlimited pages tall
+  };
+  ws['!margins']   = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
+  ws['!rowBreaks'] = rowBreaks;
+
   return ws;
 }
 
@@ -466,6 +490,16 @@ function buildOverviewSheet(lineMap: Record<string, BoardItem[]>, activeLines: s
   }
   ws['!cols'] = colWidths;
 
+  // A3 landscape — try to fit all lines side-by-side on one page wide
+  ws['!pageSetup'] = {
+    paperSize:   8,
+    orientation: 'landscape',
+    fitToPage:   true,
+    fitToWidth:  1,
+    fitToHeight: 0,
+  };
+  ws['!margins'] = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
+
   return ws;
 }
 
@@ -481,15 +515,31 @@ export async function downloadStyledExcel(
 
   const active = activeLines.filter(l => (lineMap[l] ?? []).length > 0);
 
+  // Ensure workbook Names array exists (used for print-title repeat rows)
+  if (!wb.Workbook)       wb.Workbook = {};
+  if (!wb.Workbook.Names) wb.Workbook.Names = [];
+
   // Overview first
   if (active.length > 0) {
     XLSX.utils.book_append_sheet(wb, buildOverviewSheet(lineMap, active), 'Production Board');
+    // Repeat the title + date rows on every printed page of the overview
+    wb.Workbook.Names.push({
+      Name:  '_xlnm.Print_Titles',
+      Ref:   `'Production Board'!$1:$2`,
+      Sheet: wb.SheetNames.indexOf('Production Board'),
+    });
   }
 
   // Detailed sheet per line
   for (const line of active) {
     const sheetName = (LINE_LABEL[line] ?? line).slice(0, 31);
     XLSX.utils.book_append_sheet(wb, buildLineSheet(line, lineMap[line]), sheetName);
+    // Repeat the kettle header + stats + column-header rows on every printed page
+    wb.Workbook.Names.push({
+      Name:  '_xlnm.Print_Titles',
+      Ref:   `'${sheetName}'!$1:$3`,
+      Sheet: wb.SheetNames.indexOf(sheetName),
+    });
   }
 
   const raw  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as number[];
