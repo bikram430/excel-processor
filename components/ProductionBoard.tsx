@@ -81,6 +81,34 @@ const ALLERGEN_COLOURS: Record<string, { badge: string; select: string }> = {
   ALLERGEN_FREE:{ badge: 'bg-green-100  text-green-700  border-green-300',  select: 'bg-green-50  text-green-700'  },
 };
 
+// ── Allergen title text colours (used on card headings) ────────────────────
+const ALLERGEN_TITLE_COLORS: Record<string, string> = {
+  DAIRY:         '#B45309', // amber-700 — warm orange-brown
+  FISH:          '#C2410C', // orange-700 — warm orange
+  SOY:           '#7C3AED', // violet-600 — purple
+  SULPHITE:      '#64748B', // slate-500 — gray-blue
+  WHEAT:         '#2563EB', // blue-600
+  ALLERGEN_FREE: '#374151', // gray-700 — default
+};
+
+function getAllergenTitleStyle(allergens: string[]): React.CSSProperties {
+  if (allergens.length === 0) {
+    return { color: ALLERGEN_TITLE_COLORS.ALLERGEN_FREE };
+  }
+  if (allergens.length === 1) {
+    return { color: ALLERGEN_TITLE_COLORS[allergens[0]] ?? ALLERGEN_TITLE_COLORS.ALLERGEN_FREE };
+  }
+  const colors = allergens
+    .map(a => ALLERGEN_TITLE_COLORS[a] ?? ALLERGEN_TITLE_COLORS.ALLERGEN_FREE)
+    .join(', ');
+  return {
+    backgroundImage: `linear-gradient(90deg, ${colors})`,
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  };
+}
+
 // ── Per-product batch size overrides ───────────────────────────────────────
 const PRODUCT_BATCH_CAPS: Record<string, number> = {
   'butter chicken':               1800,
@@ -278,6 +306,8 @@ function ProductCard({
   isDragging = false,
   dragHandleProps = {},
   showMeat = true,
+  expanded = false,
+  onToggleExpand,
 }: {
   item: BoardItem;
   position: number;
@@ -290,29 +320,31 @@ function ProductCard({
   isDragging?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement> & { style?: React.CSSProperties };
   showMeat?: boolean;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const hiddenTimeRef = useRef<HTMLInputElement>(null);
-  const batchSizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
-  const otherLines = activeLines.filter(l => l !== item.line);
-  const aKey       = allergenKey(item);
-  const aColours   = ALLERGEN_COLOURS[aKey] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
+  const batchSizes    = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
+  const otherLines    = activeLines.filter(l => l !== item.line);
 
-  // Meat calculations — computed per batch, wrapped in try/catch per spec
+  // Meat calculations — computed per batch
   const allBatchMeat: MeatResult[][] = showMeat
     ? batchSizes.map(b => calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap))
     : batchSizes.map(() => []);
 
-  const hasMeat = allBatchMeat.some(r => r.length > 0);
+  const hasMeat         = allBatchMeat.some(r => r.length > 0);
   const totalCardMeatKg = allBatchMeat.reduce(
     (sum, results) => sum + results.reduce((s, r) => s + r.qty_kg, 0), 0
   );
-  // Badges from first batch (structure same for all batches; qty varies)
   const meatBadges = (allBatchMeat[0] ?? []).map(r => ({
     icon:   MEAT_ICON[r.meat_type],
     colors: MEAT_COLORS[r.meat_type],
     label:  r.meat_type,
     key:    r.ingredient_code || r.ingredient_description,
   }));
+
+  // Allergen-based title color
+  const titleStyle = getAllergenTitleStyle(item.allergens);
 
   return (
     <div className={`bg-white rounded-xl overflow-hidden transition-all duration-150 ${
@@ -321,7 +353,7 @@ function ProductCard({
                    'shadow-sm border border-gray-200'
     }`}>
 
-      {/* ── Inline CIP indicator ── */}
+      {/* ── CIP indicator — always visible ── */}
       {needsCleanBefore && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border-b border-amber-200">
           <svg className="w-3 h-3 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -333,7 +365,7 @@ function ProductCard({
       )}
 
       {/*
-       * ── DRAG HANDLE ──────────────────────────────────────────────────
+       * ── COMPACT HEADER (drag handle) ─────────────────────────────────
        * Only this section has touch-action:none and the dnd listeners.
        */}
       <div
@@ -341,72 +373,113 @@ function ProductCard({
         className={`cursor-grab active:cursor-grabbing select-none ${dragHandleProps.className ?? ''}`}
       >
         {/* Drag pill */}
-        <div className={`flex items-center justify-center pt-2 pb-1 transition-colors ${
+        <div className={`flex items-center justify-center pt-1.5 pb-1 transition-colors ${
           isHolding ? 'bg-indigo-50' : 'bg-gray-50'
         }`}>
-          <div className={`w-9 h-1.5 rounded-full transition-colors ${
+          <div className={`w-8 h-1 rounded-full transition-colors ${
             isHolding ? 'bg-indigo-400' : 'bg-gray-300'
           }`} />
           {isHolding && (
-            <span className="absolute text-[8px] text-indigo-500 font-bold tracking-widest mt-5">
+            <span className="absolute text-[8px] text-indigo-500 font-bold tracking-widest mt-4">
               HOLD &amp; DRAG
             </span>
           )}
         </div>
 
-        {/* Position badge + product name + meat badges + batch sizes */}
-        <div className="flex items-start px-3 pt-1 pb-2 gap-2">
-          <div className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center
+        {/* Compact row: position badge + name + batch count + expand button */}
+        <div className="flex items-center px-2.5 py-1.5 gap-2">
+          <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center
                           rounded-full bg-gray-100 text-[9px] font-bold text-gray-400">
             {position || '·'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900 text-sm leading-snug" title={item.product}>
+            <p
+              className="font-bold text-sm leading-snug truncate"
+              style={titleStyle}
+              title={item.product}
+            >
               {item.product}
             </p>
+            <p className="text-[10px] text-gray-500 font-mono">
+              <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span>
+              {' kg · '}
+              <span className="text-indigo-600 font-semibold">
+                {item.batches} batch{item.batches !== 1 ? 'es' : ''}
+              </span>
+            </p>
+          </div>
+          {/* Expand / collapse button — stops propagation so it doesn't start a drag */}
+          {onToggleExpand && (
+            <button
+              type="button"
+              aria-label={expanded ? 'Collapse card' : 'Expand card'}
+              onClick={e => { e.stopPropagation(); onToggleExpand(); }}
+              onPointerDown={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full
+                         border transition-all ${
+                expanded
+                  ? 'bg-indigo-100 border-indigo-200 text-indigo-600'
+                  : 'bg-gray-100 border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <svg
+                className={`w-3 h-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+      {/* ── END COMPACT HEADER / DRAG HANDLE ── */}
 
-            {/* Meat type badges */}
-            {showMeat && meatBadges.length > 0 && (
-              <div className="flex flex-wrap gap-0.5 mt-0.5">
-                {meatBadges.map((badge, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: badge.colors.bg, color: badge.colors.text }}
-                  >
-                    <span>{badge.icon}</span>
-                    <span>{badge.label}</span>
-                  </span>
-                ))}
-              </div>
-            )}
+      {/* ── Expanded details (shown only when expanded) ── */}
+      {expanded && (
+        <div className="border-t border-gray-100">
 
-            {/* Kettle preference badge */}
-            {(() => {
-              const preferred   = getPreferredKettles(item.product, '');
-              if (preferred.length === 0) return null;
-              const shorts      = preferred.map(k => LINE_SHORT[k] ?? k).join('/');
-              const onPreferred = preferred.includes(item.line);
-              return (
-                <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${
+          {/* Meat type badges */}
+          {showMeat && meatBadges.length > 0 && (
+            <div className="flex flex-wrap gap-0.5 px-3 pt-2">
+              {meatBadges.map((badge, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: badge.colors.bg, color: badge.colors.text }}
+                >
+                  <span>{badge.icon}</span>
+                  <span>{badge.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Kettle preference badge */}
+          {(() => {
+            const preferred   = getPreferredKettles(item.product, '');
+            if (preferred.length === 0) return null;
+            const shorts      = preferred.map(k => LINE_SHORT[k] ?? k).join('/');
+            const onPreferred = preferred.includes(item.line);
+            return (
+              <div className="px-3 pt-1">
+                <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                   onPreferred ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                 }`}>
                   {onPreferred ? '✓' : '→'} {shorts}
                 </span>
-              );
-            })()}
+              </div>
+            );
+          })()}
 
-            <p className="text-[11px] text-gray-500 font-mono mt-0.5">
-              <span className="font-bold text-gray-700">{item.quantity.toLocaleString()}</span> kg total
-            </p>
-
-            {/* Batch rows with per-batch meat breakdown */}
-            <div className="mt-2 space-y-1.5 bg-indigo-50 rounded-lg px-2 py-1.5">
+          {/* Batch rows with per-batch meat breakdown */}
+          <div className="px-3 pt-2 pb-2">
+            <div className="space-y-1.5 bg-indigo-50 rounded-lg px-2 py-1.5">
               {batchSizes.map((b, i) => {
                 const meatForBatch = allBatchMeat[i] ?? [];
                 return (
                   <div key={i}>
-                    {/* Batch number + kg */}
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-indigo-400 font-mono w-5 flex-shrink-0">
                         *{i + 1}
@@ -415,11 +488,9 @@ function ProductCard({
                         {b.kg.toLocaleString()} kg
                       </span>
                     </div>
-                    {/* Meat breakdown below the kg */}
                     {showMeat && meatForBatch.length > 0 && (
                       <div className="mt-1 space-y-0.5">
                         {meatForBatch[0].is_sub_recipe ? (
-                          // Sub-recipe chain display
                           <>
                             <div className="flex items-start gap-1">
                               <span className="text-[9px] leading-none flex-shrink-0 mt-px">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
@@ -450,7 +521,6 @@ function ProductCard({
                             </div>
                           </>
                         ) : meatForBatch.length > 1 ? (
-                          // Multi-meat display
                           <>
                             {meatForBatch.map((m, mi) => (
                               <div key={mi} className="flex items-start gap-1">
@@ -471,7 +541,6 @@ function ProductCard({
                             </div>
                           </>
                         ) : (
-                          // Single direct meat
                           <>
                             <div className="flex items-start gap-1">
                               <span className="text-[9px] leading-none flex-shrink-0 mt-px">{MEAT_ICON[meatForBatch[0].meat_type]}</span>
@@ -494,153 +563,150 @@ function ProductCard({
               })}
             </div>
           </div>
-        </div>
-      </div>
-      {/* ── END DRAG HANDLE ── */}
 
-      {/* ── Total meat this card ── */}
-      {showMeat && hasMeat && (
-        <div className="px-3 pb-1.5">
-          <div className="flex items-center justify-between bg-rose-50 rounded-lg px-2 py-1 border border-rose-100">
-            <span className="text-[9px] font-semibold text-rose-600">Total meat this card</span>
-            <span className="text-[10px] font-mono font-bold text-rose-700 tabular-nums">
-              {totalCardMeatKg.toFixed(2)} kg
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Allergen badges (multi) + add selector ── */}
-      <div className="px-3 pb-2">
-        <div className="flex flex-wrap gap-1 mb-1">
-          {item.allergens.length === 0 ? (
-            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${ALLERGEN_COLOURS.ALLERGEN_FREE.badge}`}>
-              Allergen Free
-            </span>
-          ) : (
-            item.allergens.map(a => {
-              const opt = ALLERGEN_OPTIONS.find(o => o.value === a);
-              const aC  = ALLERGEN_COLOURS[a] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
-              return (
-                <span key={a} className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${aC.badge}`}>
-                  {opt?.label ?? a}
-                  {onAllergenChange && (
-                    <button
-                      type="button"
-                      onClick={() => onAllergenChange(item.id, item.allergens.filter(x => x !== a))}
-                      className="ml-0.5 leading-none hover:opacity-60"
-                      aria-label={`Remove ${a}`}
-                    >×</button>
-                  )}
+          {/* Total meat this card */}
+          {showMeat && hasMeat && (
+            <div className="px-3 pb-1.5">
+              <div className="flex items-center justify-between bg-rose-50 rounded-lg px-2 py-1 border border-rose-100">
+                <span className="text-[9px] font-semibold text-rose-600">Total meat this card</span>
+                <span className="text-[10px] font-mono font-bold text-rose-700 tabular-nums">
+                  {totalCardMeatKg.toFixed(2)} kg
                 </span>
-              );
-            })
+              </div>
+            </div>
           )}
-        </div>
-        {onAllergenChange && (() => {
-          const available = ALLERGEN_OPTIONS.filter(
-            o => o.value !== 'ALLERGEN_FREE' && !item.allergens.includes(o.value)
-          );
-          if (available.length === 0) return null;
-          return (
-            <select
-              value=""
-              onChange={e => {
-                if (!e.target.value) return;
-                onAllergenChange(item.id, [...item.allergens, e.target.value]);
-              }}
-              className="w-full text-[10px] border border-gray-200 rounded-lg px-2 py-1
-                         focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-500 bg-white"
-            >
-              <option value="">+ Add allergen…</option>
-              {available.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          );
-        })()}
-      </div>
 
-      {/* ── Start-time input (24h text + clock picker) ── */}
-      {onTimeChange && (
-        <div className="px-3 pb-2 flex items-center gap-1.5">
-          <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
-          <input
-            type="text"
-            value={item.time}
-            placeholder="HH:MM"
-            maxLength={5}
-            onChange={e => onTimeChange(item.id, e.target.value)}
-            onBlur={e => {
-              const v = e.target.value.trim();
-              const m = v.match(/^(\d{1,2}):(\d{2})$/);
-              if (m) {
-                const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
-                if (h < 24 && min < 60)
-                  onTimeChange(item.id, `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
-              } else if (!v) {
-                onTimeChange(item.id, '');
-              }
-            }}
-            className="flex-1 min-w-0 text-[11px] font-mono text-gray-700 border border-gray-200
-                       rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          />
-          {/* Clock icon — opens native time picker */}
-          <button
-            type="button"
-            onClick={() => hiddenTimeRef.current?.showPicker?.()}
-            className="text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
-            title="Open time picker"
-            aria-label="Open time picker"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-          {/* Hidden time input for the native picker — value always HH:MM */}
-          <input
-            ref={hiddenTimeRef}
-            type="time"
-            className="sr-only"
-            value={item.time || ''}
-            onChange={e => onTimeChange(item.id, e.target.value)}
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-        </div>
-      )}
+          {/* Allergen badges + add selector */}
+          <div className="px-3 pb-2">
+            <div className="flex flex-wrap gap-1 mb-1">
+              {item.allergens.length === 0 ? (
+                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${ALLERGEN_COLOURS.ALLERGEN_FREE.badge}`}>
+                  Allergen Free
+                </span>
+              ) : (
+                item.allergens.map(a => {
+                  const opt = ALLERGEN_OPTIONS.find(o => o.value === a);
+                  const aC  = ALLERGEN_COLOURS[a] ?? ALLERGEN_COLOURS.ALLERGEN_FREE;
+                  return (
+                    <span key={a} className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${aC.badge}`}>
+                      {opt?.label ?? a}
+                      {onAllergenChange && (
+                        <button
+                          type="button"
+                          onClick={() => onAllergenChange(item.id, item.allergens.filter(x => x !== a))}
+                          className="ml-0.5 leading-none hover:opacity-60"
+                          aria-label={`Remove ${a}`}
+                        >×</button>
+                      )}
+                    </span>
+                  );
+                })
+              )}
+            </div>
+            {onAllergenChange && (() => {
+              const available = ALLERGEN_OPTIONS.filter(
+                o => o.value !== 'ALLERGEN_FREE' && !item.allergens.includes(o.value)
+              );
+              if (available.length === 0) return null;
+              return (
+                <select
+                  value=""
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    onAllergenChange(item.id, [...item.allergens, e.target.value]);
+                  }}
+                  className="w-full text-[10px] border border-gray-200 rounded-lg px-2 py-1
+                             focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-500 bg-white"
+                >
+                  <option value="">+ Add allergen…</option>
+                  {available.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              );
+            })()}
+          </div>
 
-      {/* ── Move-to buttons ── */}
-      {onMoveTo && otherLines.length > 0 && (
-        <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2">
-          <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">Move→</span>
-          {otherLines.map(targetLine => {
-            const compat = isCompatible(item, targetLine);
-            const cap    = LINE_CAPS[targetLine];
-            return (
+          {/* Start-time input */}
+          {onTimeChange && (
+            <div className="px-3 pb-2 flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-400 flex-shrink-0">Start:</span>
+              <input
+                type="text"
+                value={item.time}
+                placeholder="HH:MM"
+                maxLength={5}
+                onChange={e => onTimeChange(item.id, e.target.value)}
+                onBlur={e => {
+                  const v = e.target.value.trim();
+                  const m = v.match(/^(\d{1,2}):(\d{2})$/);
+                  if (m) {
+                    const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+                    if (h < 24 && min < 60)
+                      onTimeChange(item.id, `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+                  } else if (!v) {
+                    onTimeChange(item.id, '');
+                  }
+                }}
+                className="flex-1 min-w-0 text-[11px] font-mono text-gray-700 border border-gray-200
+                           rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
               <button
-                key={targetLine}
-                onClick={() => compat && onMoveTo(item.id, targetLine)}
-                disabled={!compat}
-                title={!compat ? `${targetLine}: max ${cap?.toLocaleString()} kg/batch` : `Move to ${targetLine}`}
-                className={`text-[10px] px-2 py-1 rounded-lg border font-bold transition-colors ${
-                  compat
-                    ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95'
-                    : 'border-red-200 text-red-400 bg-red-50 cursor-not-allowed opacity-60'
-                }`}
+                type="button"
+                onClick={() => hiddenTimeRef.current?.showPicker?.()}
+                className="text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
+                title="Open time picker"
+                aria-label="Open time picker"
               >
-                {LINE_SHORT[targetLine]}{!compat && ' ✕'}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </button>
-            );
-          })}
+              <input
+                ref={hiddenTimeRef}
+                type="time"
+                className="sr-only"
+                value={item.time || ''}
+                onChange={e => onTimeChange(item.id, e.target.value)}
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+            </div>
+          )}
+
+          {/* Move-to buttons */}
+          {onMoveTo && otherLines.length > 0 && (
+            <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2">
+              <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">Move→</span>
+              {otherLines.map(targetLine => {
+                const compat = isCompatible(item, targetLine);
+                const cap    = LINE_CAPS[targetLine];
+                return (
+                  <button
+                    key={targetLine}
+                    onClick={() => compat && onMoveTo(item.id, targetLine)}
+                    disabled={!compat}
+                    title={!compat ? `${targetLine}: max ${cap?.toLocaleString()} kg/batch` : `Move to ${targetLine}`}
+                    className={`text-[10px] px-2 py-1 rounded-lg border font-bold transition-colors ${
+                      compat
+                        ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95'
+                        : 'border-red-200 text-red-400 bg-red-50 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    {LINE_SHORT[targetLine]}{!compat && ' ✕'}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── Sortable card — drag handle is the name/batch area only ─────────────────
+// ── Sortable card — drag handle is the compact header area only ─────────────
 function SortableCard({
   item,
   position,
@@ -660,7 +726,8 @@ function SortableCard({
   onMoveTo: (id: string, targetLine: string) => void;
   showMeat: boolean;
 }) {
-  const [isHolding, setIsHolding] = useState(false);
+  const [isHolding,  setIsHolding]  = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const {
     attributes,
@@ -672,12 +739,9 @@ function SortableCard({
   } = useSortable({ id: item.id });
 
   /*
-   * dragHandleProps is applied ONLY to the top section of the card
-   * (pill + product name + batch sizes). The bottom section (allergen,
-   * time, move-to) has no listeners, so touch there scrolls normally.
-   *
-   * touch-action:none prevents the browser claiming the touch for scroll
-   * while the 250ms hold is counting down inside TouchSensor.
+   * dragHandleProps applied ONLY to the compact header (pill + name row).
+   * Expanded section (allergens, time, move-to) has no listeners,
+   * so touch there scrolls normally.
    */
   const dragHandleProps = {
     ...listeners,
@@ -707,6 +771,8 @@ function SortableCard({
         isHolding={isHolding && !isDragging}
         isDragging={isDragging}
         showMeat={showMeat}
+        expanded={isExpanded}
+        onToggleExpand={() => setIsExpanded(v => !v)}
       />
     </div>
   );
@@ -853,6 +919,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [pdfLoading,      setPdfLoading]       = useState(false);
   const [showMeat,        setShowMeat]         = useState(true);
   const [meatSummaryOpen, setMeatSummaryOpen]  = useState(false);
+  const [showDownloadMenu,setShowDownloadMenu] = useState(false);
 
   // Line 7-8 upload state
   const [line78Modal,    setLine78Modal]    = useState(false);
@@ -860,10 +927,11 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const [line78Loading,  setLine78Loading]  = useState(false);
   const [line78Toast,    setLine78Toast]    = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const snapshot    = useRef<Record<string, BoardItem[]> | null>(null);
-  const lastOverRef = useRef<string | null>(null);
-  const boardRef    = useRef<HTMLDivElement>(null);
-  const line78Ref   = useRef<HTMLInputElement>(null);
+  const snapshot       = useRef<Record<string, BoardItem[]> | null>(null);
+  const lastOverRef    = useRef<string | null>(null);
+  const boardRef       = useRef<HTMLDivElement>(null);
+  const line78Ref      = useRef<HTMLInputElement>(null);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync showMeat with localStorage (client-only)
   useEffect(() => {
@@ -872,6 +940,18 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       if (stored !== null) setShowMeat(stored === 'true');
     } catch { /* ignore SSR/private-mode */ }
   }, []);
+
+  // Close download menu on outside click
+  useEffect(() => {
+    if (!showDownloadMenu) return;
+    function handleOutside(e: MouseEvent) {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setShowDownloadMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [showDownloadMenu]);
 
   function toggleMeat() {
     setShowMeat(prev => {
@@ -958,6 +1038,32 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  async function handleDownload(mode: 'simple' | 'meat' | 'full') {
+    setShowDownloadMenu(false);
+    setPdfLoading(true);
+    try {
+      const nonKettleItems = mode === 'meat'
+        ? nonKettleMeatData.map(d => ({
+            product:  d.row.product,
+            itemCode: d.row.itemCode ?? '',
+            line:     d.row.line,
+            quantity: d.row.quantity,
+          }))
+        : undefined;
+      await downloadBoardPDF(
+        Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
+        activeLines,
+        'production-board.pdf',
+        mode,
+        nonKettleItems,
+      );
+    } catch (err) {
+      alert(`Could not generate PDF: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setPdfLoading(false);
+    }
+  }
 
   function handleAllergenChange(id: string, allergens: string[]) {
     setAllItems(prev => {
@@ -1373,44 +1479,68 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
             </>
           )}
         </button>
-        <button
-          disabled={pdfLoading}
-          onClick={async () => {
-            setPdfLoading(true);
-            try {
-              await downloadBoardPDF(
-                Object.fromEntries(activeLines.map(l => [l, allItems[l] ?? []])),
-                activeLines,
-                'production-board.pdf',
-              );
-            } catch (err) {
-              alert(`Could not generate PDF: ${err instanceof Error ? err.message : String(err)}`);
-            } finally {
-              setPdfLoading(false);
-            }
-          }}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
-                     text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-95
-                     transition-all shadow-sm w-full sm:w-auto disabled:opacity-60 disabled:cursor-wait"
-        >
-          {pdfLoading ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              Generating PDF…
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download Board (PDF)
-            </>
+        {/* ── Download dropdown ── */}
+        <div ref={downloadMenuRef} className="relative w-full sm:w-auto">
+          <button
+            disabled={pdfLoading}
+            onClick={() => setShowDownloadMenu(v => !v)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold
+                       text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-95
+                       transition-all shadow-sm w-full disabled:opacity-60 disabled:cursor-wait"
+          >
+            {pdfLoading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Generating PDF…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Board
+                <svg className={`w-3.5 h-3.5 transition-transform ${showDownloadMenu ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </>
+            )}
+          </button>
+          {showDownloadMenu && !pdfLoading && (
+            <div className="absolute right-0 sm:right-0 bottom-full sm:bottom-auto sm:top-full mb-1 sm:mb-0 sm:mt-1
+                            z-30 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden
+                            w-full sm:min-w-[300px]">
+              <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Select download format</p>
+              </div>
+              <button
+                onClick={() => handleDownload('simple')}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
+              >
+                <p className="text-sm font-semibold text-gray-800">1) Summary view</p>
+                <p className="text-xs text-gray-500 mt-0.5">Name · Time · Allergen type · Batch size only</p>
+              </button>
+              <button
+                onClick={() => handleDownload('meat')}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
+              >
+                <p className="text-sm font-semibold text-gray-800">2) Meat-only view</p>
+                <p className="text-xs text-gray-500 mt-0.5">Meat items with per-batch quantities · Non-kettle meat items at bottom</p>
+              </button>
+              <button
+                onClick={() => handleDownload('full')}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <p className="text-sm font-semibold text-gray-800">3) Full board</p>
+                <p className="text-xs text-gray-500 mt-0.5">All products with complete batch and meat data</p>
+              </button>
+            </div>
           )}
-        </button>
+        </div>
       </div>
 
       {/* ── Board columns ── */}

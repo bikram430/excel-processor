@@ -9,6 +9,15 @@ import { needsCleaning } from '@/lib/allergenRules';
 import { calculateMeat, recipesMap, subRecipesMap } from '@/lib/meatCalculator';
 import type { MeatType } from '@/lib/meatCalculator';
 
+export type PdfMode = 'simple' | 'meat' | 'full';
+
+export interface NonKettleItemForPdf {
+  product: string;
+  itemCode: string;
+  line: string;
+  quantity: number;
+}
+
 // ── Emoji support — register Twemoji so emoji glyphs render in the PDF ─────
 Font.registerEmojiSource({
   format: 'png',
@@ -24,7 +33,6 @@ const MEAT_ABBR: Record<MeatType, string> = {
   Pork:    '🐷',
   Other:   '🥩',
 };
-
 
 const LINE_LABEL: Record<string, string> = {
   'KETTLE 1 SOUP':        'Kettle (K1)',
@@ -64,7 +72,12 @@ function parseBatchSizes(breakdown: string, batches: number, qty: number): { kg:
 
 function fmtTime(t: string): string {
   if (!t) return '';
-  return t; // stored as HH:MM in 24-hour format — display as-is
+  return t;
+}
+
+function itemHasMeat(item: BoardItem): boolean {
+  const sizes = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
+  return sizes.some(b => calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap).length > 0);
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
@@ -94,6 +107,12 @@ const S = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Helvetica-Bold',
     color: '#FFFFFF',
+  },
+  pageSubtitle: {
+    fontSize: 8,
+    fontFamily: 'Helvetica',
+    color: '#94A3B8',
+    marginTop: 2,
   },
   pageDate: {
     fontSize: 8,
@@ -334,25 +353,124 @@ const S = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#166534',
   },
+  // Non-kettle section styles
+  nonKettleSection: {
+    marginTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#E2E8F0',
+    borderTopStyle: 'solid',
+    paddingTop: 8,
+  },
+  nonKettleTitle: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  nonKettleTable: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'solid',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  nonKettleHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#1E293B',
+    paddingTop: 5,
+    paddingBottom: 5,
+    paddingLeft: 6,
+    paddingRight: 6,
+  },
+  nonKettleHeaderCell: {
+    fontSize: 6.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#94A3B8',
+  },
+  nonKettleRow: {
+    flexDirection: 'row',
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingLeft: 6,
+    paddingRight: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    borderBottomStyle: 'solid',
+  },
+  nonKettleCell: {
+    fontSize: 7,
+    fontFamily: 'Helvetica',
+    color: '#374151',
+  },
+  nonKettleCellBold: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1E293B',
+  },
 });
 
-// ── Card ───────────────────────────────────────────────────────────────────
+// ── Simple Card (Mode 1) ───────────────────────────────────────────────────
 
-function CardView({ item, position, hasCIP }: {
+function SimpleCardView({ item, position, hasCIP }: {
   item: BoardItem;
   position: number;
   hasCIP: boolean;
 }) {
   const allergenKey = item.allergens[0] ?? 'ALLERGEN_FREE';
   const alg         = ALLERGEN_INFO[allergenKey] ?? ALLERGEN_INFO.ALLERGEN_FREE;
+
+  return (
+    <View style={S.card}>
+      {hasCIP && (
+        <View style={S.cipStrip}>
+          <View style={S.cipDot} />
+          <Text style={S.cipText}>CIP / CLEAN BEFORE THIS</Text>
+        </View>
+      )}
+      <View style={S.cardBody}>
+        <View style={S.titleRow}>
+          <View style={S.posBadge}>
+            <Text style={S.posNum}>{position}</Text>
+          </View>
+          <Text style={S.productName}>{item.product}</Text>
+        </View>
+
+        <Text style={S.totalKg}>
+          {item.quantity.toLocaleString()} kg total · {item.batches} batch{item.batches !== 1 ? 'es' : ''}
+        </Text>
+
+        <View style={[S.allergenPill, { backgroundColor: alg.bg }]}>
+          <Text style={[S.allergenText, { color: alg.fg }]}>{alg.label}</Text>
+        </View>
+
+        {!!item.time && (
+          <View style={S.timeRow}>
+            <Text style={S.timeLabel}>Start:</Text>
+            <Text style={S.timeValue}>{fmtTime(item.time)}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ── Full Card (Mode 2 & 3) ─────────────────────────────────────────────────
+
+function FullCardView({ item, position, hasCIP, showMeat }: {
+  item: BoardItem;
+  position: number;
+  hasCIP: boolean;
+  showMeat: boolean;
+}) {
+  const allergenKey = item.allergens[0] ?? 'ALLERGEN_FREE';
+  const alg         = ALLERGEN_INFO[allergenKey] ?? ALLERGEN_INFO.ALLERGEN_FREE;
   const sizes       = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
 
-  // Per-batch meat calculations
-  const allBatchMeat = sizes.map(b =>
-    calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap)
-  );
-  const hasMeat        = allBatchMeat.some(r => r.length > 0);
-  const totalCardMeat  = allBatchMeat.reduce(
+  const allBatchMeat = showMeat
+    ? sizes.map(b => calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap))
+    : sizes.map(() => []);
+  const hasMeat       = allBatchMeat.some(r => r.length > 0);
+  const totalCardMeat = allBatchMeat.reduce(
     (sum, results) => sum + results.reduce((s, r) => s + r.qty_kg, 0), 0
   );
 
@@ -383,7 +501,7 @@ function CardView({ item, position, hasCIP }: {
                   <Text style={S.batchNum}>*{i + 1}</Text>
                   <Text style={S.batchKg}>{b.kg.toLocaleString()} kg</Text>
                 </View>
-                {meatForBatch.map((m, mi) => (
+                {showMeat && meatForBatch.map((m, mi) => (
                   <View key={mi} style={S.meatRow}>
                     <Text style={S.meatType}>{MEAT_ABBR[m.meat_type]}</Text>
                     <Text style={S.meatDesc}>{m.ingredient_description}</Text>
@@ -395,14 +513,14 @@ function CardView({ item, position, hasCIP }: {
           })}
         </View>
 
-        {hasMeat && (
+        {showMeat && hasMeat && (
           <View style={S.meatTotalStrip}>
             <Text style={S.meatTotalLabel}>Total meat this card</Text>
             <Text style={S.meatTotalKg}>{totalCardMeat.toFixed(2)} kg</Text>
           </View>
         )}
 
-        <View style={[S.allergenPill, { backgroundColor: alg.bg }]}>
+        <View style={[S.allergenPill, { backgroundColor: alg.bg, marginTop: 5 }]}>
           <Text style={[S.allergenText, { color: alg.fg }]}>{alg.label}</Text>
         </View>
 
@@ -419,10 +537,23 @@ function CardView({ item, position, hasCIP }: {
 
 // ── Column ─────────────────────────────────────────────────────────────────
 
-function ColumnView({ line, items }: { line: string; items: BoardItem[] }) {
+function ColumnView({
+  line, items, mode,
+}: {
+  line: string;
+  items: BoardItem[];
+  mode: PdfMode;
+}) {
+  // For 'meat' mode filter to only items that have meat
+  const displayItems = mode === 'meat'
+    ? items.filter(itemHasMeat)
+    : items;
+
+  if (displayItems.length === 0) return null;
+
   const label        = LINE_LABEL[line] ?? line;
-  const totalKg      = items.reduce((s, i) => s + i.quantity, 0);
-  const totalBatches = items.reduce((s, i) => s + i.batches, 0);
+  const totalKg      = displayItems.reduce((s, i) => s + i.quantity, 0);
+  const totalBatches = displayItems.reduce((s, i) => s + i.batches, 0);
 
   const cleanBefore = new Set<string>();
   for (let i = 1; i < items.length; i++) {
@@ -434,19 +565,29 @@ function ColumnView({ line, items }: { line: string; items: BoardItem[] }) {
       <View style={S.colHeader}>
         <Text style={S.colTitle}>{label}</Text>
         <Text style={S.colStats}>
-          {items.length} product{items.length !== 1 ? 's' : ''} · {totalBatches} batch{totalBatches !== 1 ? 'es' : ''}
+          {displayItems.length} product{displayItems.length !== 1 ? 's' : ''} · {totalBatches} batch{totalBatches !== 1 ? 'es' : ''}
         </Text>
         <Text style={S.colKg}>{totalKg.toLocaleString()} kg</Text>
       </View>
 
-      {items.map((item, i) => (
-        <CardView
-          key={item.id}
-          item={item}
-          position={i + 1}
-          hasCIP={cleanBefore.has(item.id)}
-        />
-      ))}
+      {displayItems.map((item, i) =>
+        mode === 'simple' ? (
+          <SimpleCardView
+            key={item.id}
+            item={item}
+            position={i + 1}
+            hasCIP={cleanBefore.has(item.id)}
+          />
+        ) : (
+          <FullCardView
+            key={item.id}
+            item={item}
+            position={i + 1}
+            hasCIP={cleanBefore.has(item.id)}
+            showMeat={mode === 'meat' || mode === 'full'}
+          />
+        )
+      )}
 
       <View style={S.subtotal}>
         <Text style={S.subtotalLabel}>SUBTOTAL</Text>
@@ -456,32 +597,129 @@ function ColumnView({ line, items }: { line: string; items: BoardItem[] }) {
   );
 }
 
+// ── Non-Kettle Meat Section (Mode 2) ───────────────────────────────────────
+
+function NonKettleMeatSection({ items }: { items: NonKettleItemForPdf[] }) {
+  // Filter to only items with meat
+  const meatItems = items.map(item => ({
+    item,
+    meatResults: calculateMeat(item.itemCode, item.quantity, recipesMap, subRecipesMap),
+  })).filter(d => d.meatResults.length > 0);
+
+  if (meatItems.length === 0) return null;
+
+  const totalMeat = meatItems.reduce(
+    (sum, d) => sum + d.meatResults.reduce((s, m) => s + m.qty_kg, 0), 0
+  );
+
+  return (
+    <View style={S.nonKettleSection}>
+      <Text style={S.nonKettleTitle}>Non-Kettle Items (Meat)</Text>
+      <View style={S.nonKettleTable}>
+        <View style={S.nonKettleHeader}>
+          <Text style={[S.nonKettleHeaderCell, { flex: 3 }]}>Product</Text>
+          <Text style={[S.nonKettleHeaderCell, { flex: 1.5 }]}>WIP Code</Text>
+          <Text style={[S.nonKettleHeaderCell, { flex: 1 }]}>Line</Text>
+          <Text style={[S.nonKettleHeaderCell, { flex: 1, textAlign: 'right' }]}>Qty (kg)</Text>
+          <Text style={[S.nonKettleHeaderCell, { flex: 2.5 }]}>Meat Ingredient</Text>
+          <Text style={[S.nonKettleHeaderCell, { flex: 1, textAlign: 'right' }]}>Meat (kg)</Text>
+        </View>
+        {meatItems.flatMap(({ item, meatResults }, idx) =>
+          meatResults.map((m, mi) => (
+            <View
+              key={`${idx}-${mi}`}
+              style={[S.nonKettleRow, { backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }]}
+            >
+              {mi === 0 ? (
+                <>
+                  <Text style={[S.nonKettleCellBold, { flex: 3 }]}>{item.product}</Text>
+                  <Text style={[S.nonKettleCell, { flex: 1.5 }]}>{item.itemCode || '—'}</Text>
+                  <Text style={[S.nonKettleCell, { flex: 1 }]}>{item.line}</Text>
+                  <Text style={[S.nonKettleCell, { flex: 1, textAlign: 'right' }]}>
+                    {item.quantity.toLocaleString()}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[S.nonKettleCell, { flex: 3 }]} />
+                  <Text style={[S.nonKettleCell, { flex: 1.5 }]} />
+                  <Text style={[S.nonKettleCell, { flex: 1 }]} />
+                  <Text style={[S.nonKettleCell, { flex: 1 }]} />
+                </>
+              )}
+              <Text style={[S.nonKettleCell, { flex: 2.5 }]}>
+                {MEAT_ABBR[m.meat_type]} {m.ingredient_description}
+              </Text>
+              <Text style={[S.nonKettleCellBold, { flex: 1, textAlign: 'right' }]}>
+                {m.qty_kg.toFixed(2)}
+              </Text>
+            </View>
+          ))
+        )}
+        <View style={[S.nonKettleRow, { backgroundColor: '#DCFCE7' }]}>
+          <Text style={[S.nonKettleCellBold, { flex: 9, color: '#166534' }]}>Total meat (non-kettle)</Text>
+          <Text style={[S.nonKettleCellBold, { flex: 1, textAlign: 'right', color: '#166534' }]}>
+            {totalMeat.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Mode title helper ───────────────────────────────────────────────────────
+
+function modeLabel(mode: PdfMode): string {
+  if (mode === 'simple') return 'Summary View (Name · Time · Allergen · Batch)';
+  if (mode === 'meat')   return 'Meat View (Meat items only + Non-Kettle meat)';
+  return 'Full View (All details)';
+}
+
 // ── Document (exported) ────────────────────────────────────────────────────
 
-export function BoardPdfDocument({ lineMap, activeLines }: {
+export function BoardPdfDocument({
+  lineMap,
+  activeLines,
+  mode = 'full',
+  nonKettleItems,
+}: {
   lineMap: Record<string, BoardItem[]>;
   activeLines: string[];
+  mode?: PdfMode;
+  nonKettleItems?: NonKettleItemForPdf[];
 }) {
   const dateStr = new Date().toLocaleDateString('en-AU', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
+  // For 'meat' mode, only show columns that have meat items
+  const visibleLines = mode === 'meat'
+    ? activeLines.filter(l => (lineMap[l] ?? []).some(itemHasMeat))
+    : activeLines;
+
   return (
     <Document>
       <Page size="A3" orientation="landscape" style={S.page}>
         <View style={S.pageHeader}>
-          <Text style={S.pageTitle}>PRODUCTION BOARD</Text>
+          <View>
+            <Text style={S.pageTitle}>PRODUCTION BOARD</Text>
+            <Text style={S.pageSubtitle}>{modeLabel(mode)}</Text>
+          </View>
           <Text style={S.pageDate}>Generated: {dateStr}</Text>
         </View>
         <View style={S.columnsRow}>
-          {activeLines.map(line => (
+          {visibleLines.map(line => (
             <ColumnView
               key={line}
               line={line}
               items={lineMap[line] ?? []}
+              mode={mode}
             />
           ))}
         </View>
+        {mode === 'meat' && nonKettleItems && nonKettleItems.length > 0 && (
+          <NonKettleMeatSection items={nonKettleItems} />
+        )}
       </Page>
     </Document>
   );

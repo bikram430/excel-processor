@@ -4,16 +4,21 @@
  * no @react-pdf/renderer code runs in the browser.
  */
 import type { BoardItem } from '@/types';
+import type { PdfMode, NonKettleItemForPdf } from '@/lib/boardPdf';
+
+export type { PdfMode, NonKettleItemForPdf };
 
 export async function downloadBoardPDF(
   lineMap: Record<string, BoardItem[]>,
   activeLines: string[],
   filename: string,
+  mode: PdfMode = 'full',
+  nonKettleItems?: NonKettleItemForPdf[],
 ) {
   const response = await fetch('/api/pdf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lineMap, activeLines }),
+    body: JSON.stringify({ lineMap, activeLines, mode, nonKettleItems }),
   });
 
   if (!response.ok) {

@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0",
     "total_recipes": 52,
-    "last_updated": "2026-03-24",
+    "last_updated": "2026-03-25",
     "batch_calculation_formula": {
       "description": "To calculate meat qty for any desired finished batch size",
       "formula": "new_meat_qty = (desired_batch_size / finished_yield_base) * base_meat_qty",
@@ -99,10 +99,10 @@
       "product_code": "WMBS10000",
       "meat_ingredients": [
         {
-          "ingredient_code": "WBFKNDC1010",
-          "ingredient_description": "Beef Knuckle In-house Diced 10x10mm",
-          "base_meat_qty": 18.000,
-          "meat_percentage": 18.00
+          "ingredient_code": "WBFKNDC2020",
+          "ingredient_description": "Beef Knuckle In-house Diced 20x20mm",
+          "base_meat_qty": 18.014,
+          "meat_percentage": 18.014
         }
       ],
       "recipe_base": {
@@ -122,8 +122,8 @@
         {
           "ingredient_code": "WCKBRDC1010",
           "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
-          "base_meat_qty": 15.100,
-          "meat_percentage": 15.10
+          "base_meat_qty": 4.394,
+          "meat_percentage": 4.394
         }
       ],
       "recipe_base": {
@@ -143,8 +143,8 @@
         {
           "ingredient_code": "WCKBRDC1010",
           "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
-          "base_meat_qty": 17.000,
-          "meat_percentage": 17.00
+          "base_meat_qty": 18.828,
+          "meat_percentage": 18.828
         }
       ],
       "recipe_base": {
@@ -185,8 +185,8 @@
         {
           "ingredient_code": "WCKBRDC1010",
           "ingredient_description": "Chicken Breast In-house Diced 10x10mm",
-          "base_meat_qty": 13.650,
-          "meat_percentage": 13.65
+          "base_meat_qty": 15.105,
+          "meat_percentage": 15.105
         }
       ],
       "recipe_base": {
