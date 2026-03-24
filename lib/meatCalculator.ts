@@ -165,6 +165,39 @@ export function calculateMeat(
             sub_qty_kg:            null,
           });
         }
+      } else if (ingCodeNorm && ingCodeNorm !== key && rMap.has(ingCodeNorm)) {
+        // ── Dynamic sub-recipe chain ──────────────────────────────────────
+        // Ingredient code is itself a recipe entry (e.g. Char Sui Pork/Chicken
+        // inside Chinese Fried Rice) — follow the chain without uses_sub_recipe.
+        const subQty       = (safeBatch / finishedYield) * ing.base_meat_qty;
+        const dynSubRecipe = rMap.get(ingCodeNorm)!;
+        const subYield     = dynSubRecipe.recipe_base?.finished_yield ?? 0;
+
+        if (subYield > 0 && dynSubRecipe.meat_ingredients?.length > 0) {
+          for (const rawIng of dynSubRecipe.meat_ingredients) {
+            const rawQty = (subQty / subYield) * rawIng.base_meat_qty;
+            results.push({
+              ingredient_code:        rawIng.ingredient_code ?? '',
+              ingredient_description: rawIng.ingredient_description,
+              meat_type:              detectMeatType(rawIng.ingredient_description),
+              qty_kg:                 Math.round(rawQty * 100) / 100,
+              is_sub_recipe:          true,
+              sub_recipe_label:       ing.ingredient_description,
+              sub_qty_kg:             Math.round(subQty * 100) / 100,
+            });
+          }
+        } else {
+          // Sub-recipe exists but has no meat data — show intermediate qty
+          results.push({
+            ingredient_code:        ing.ingredient_code ?? '',
+            ingredient_description: ing.ingredient_description,
+            meat_type:              detectMeatType(ing.ingredient_description),
+            qty_kg:                 Math.round(subQty * 100) / 100,
+            is_sub_recipe:          true,
+            sub_recipe_label:       ing.ingredient_description,
+            sub_qty_kg:             null,
+          });
+        }
       } else {
         // ── Direct ingredient ─────────────────────────────────────────────
         const qty = (safeBatch / finishedYield) * ing.base_meat_qty;
