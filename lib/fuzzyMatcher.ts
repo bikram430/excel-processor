@@ -1,23 +1,26 @@
 /**
- * Fuzzy matcher for pairing production board recipe names against commercial
- * product names from the Line 7-8 scheduling file.
+ * Fuzzy matcher for pairing production board recipe names against Line 7-8
+ * scheduling entries.
  *
- * Board names are short and clean:   "Butter Chicken", "Tomato Basil Pasta Sauce"
- * L7-8 names are long and noisy:     "Coles Kitchen Butter Chicken 6x500g"
+ * Matching uses two passes in priority order:
  *
- * Strategy — board-first RECALL:
+ * PASS 1 — Parenthetical-code match (highest priority)
+ *   Many board products carry a short production code in parentheses, e.g.
+ *   "MEAT SAUCE EPP (EM)" or "BECHAMEL SAUCE EPP (EB)".  The Line 7-8 schedule
+ *   often uses ONLY that abbreviation: "EM/EB".  Normal recall scoring fails
+ *   here because "meat" / "sauce" / "bechamel" never appear in "EM/EB".
+ *   Solution: extract the 2–4-character code from the parentheses and search
+ *   every candidate's raw (un-filtered) words for an exact match.  If found,
+ *   return that candidate immediately as a confident match.
+ *
+ * PASS 2 — Board-first RECALL (fallback)
  *   Score = (board tokens found in candidate) / (total board tokens)
- *
- *   A score of 1.0 means every keyword in the recipe name appears in the
- *   commercial name → perfect match regardless of how many extra words the
- *   commercial name has.
- *
+ *   "Butter Chicken" scores 1.0 against "Coles Butter Chicken Sauce 500g".
  *   Tiebreaker: prefer the candidate that covers the board tokens with fewer
  *   extra words (higher precision = |intersection| / |candidate tokens|).
  */
 
 // ── Stop words ──────────────────────────────────────────────────────────────
-// Words that appear in commercial names but never in recipe names
 const STOP_WORDS = new Set([
   // Supermarket / retailer names
   'coles', 'woolworths', 'ww', 'aldi', 'iga', 'spar', 'harris', 'costco',
@@ -27,15 +30,15 @@ const STOP_WORDS = new Set([
   'homestyle', 'homemade', 'traditional', 'hearty', 'delicious', 'gourmet',
   'rich', 'chunky', 'thick', 'smooth', 'slow', 'cooked', 'roasted', 'baked',
   'australian', 'harvest',
-  // Production-specific codes that don't appear in commercial names
-  'epp', 'eb', 'fill', 'cqc',
+  // Production-specific codes stripped from RECALL scoring only
+  // NOTE: "eb" intentionally removed — it is an identifier in "EM/EB" entries
+  'epp', 'fill', 'cqc',
   // English function words
   'the', 'and', 'with', 'for', 'in', 'on', 'at', 'of', 'a', 'an', 'by', 'to',
   'or', 'its', 'is',
 ]);
 
 // ── Synonym map ─────────────────────────────────────────────────────────────
-// Normalise production abbreviations → commercial equivalents (and vice versa)
 const SYNONYMS: Record<string, string> = {
   'sc':      'sauce',
   'sce':     'sauce',
@@ -48,8 +51,8 @@ const SYNONYMS: Record<string, string> = {
   'vegs':    'vegetable',
   'chk':     'chicken',
   'chkn':    'chicken',
-  'ctm':     'tikka',      // chicken tikka masala abbreviation
-  'lrj':     'rogan',      // lamb rogan josh
+  'ctm':     'tikka',
+  'lrj':     'rogan',
   'strog':   'stroganoff',
   'mush':    'mushroom',
   'tom':     'tomato',
@@ -59,19 +62,18 @@ const SYNONYMS: Record<string, string> = {
   'tkk':     'tikka',
 };
 
-// Year-like tokens (e.g. "2025", "2024") — strip these
 const YEAR_RE = /^20\d{2}$/;
 
 function tokenise(name: string): Set<string> {
   const tokens = name
     .toLowerCase()
-    .replace(/[()&\-/]/g, ' ')          // treat brackets, hyphens, slashes as spaces
-    .replace(/[^a-z0-9\s]/g, '')        // drop remaining punctuation
+    .replace(/[()&\-/]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
     .split(/\s+/)
     .filter(token => {
       if (!token || token.length <= 1)  return false;
-      if (/^\d/.test(token))            return false; // numbers / sizes (6x480g, 500g, …)
-      if (YEAR_RE.test(token))          return false; // year numbers (2025 etc.)
+      if (/^\d/.test(token))            return false;
+      if (YEAR_RE.test(token))          return false;
       if (STOP_WORDS.has(token))        return false;
       return true;
     })
@@ -80,33 +82,78 @@ function tokenise(name: string): Set<string> {
   return new Set(tokens);
 }
 
-// ── Confidence thresholds (recall-based) ────────────────────────────────────
-const CONFIDENT_THRESHOLD    = 0.60; // ≥60 % of board keywords found → confident
-const LOW_CONF_THRESHOLD     = 0.30; // 30–60 % → low confidence
-// < 30 % → no match
+/**
+ * Split a string into raw lowercase words — NO stop-word filtering.
+ * Used exclusively for parenthetical-code matching so that abbreviations
+ * like "EB" in "EM/EB" are never silently dropped.
+ */
+function rawWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[()&\-/,]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(t => t.length >= 2);
+}
+
+/**
+ * Extract short production codes from parentheses in a board product name.
+ *   "MEAT SAUCE EPP (EM)"      → ["em"]
+ *   "BECHAMEL SAUCE EPP (EB)"  → ["eb"]
+ *   "Butter Chicken"            → []
+ * Only 2–4 character codes are considered (avoids matching "(Mixed)" etc.).
+ */
+function extractParenCodes(name: string): string[] {
+  return [...name.matchAll(/\(([A-Za-z]{2,4})\)/g)]
+    .map(m => m[1].toLowerCase());
+}
+
+// ── Confidence thresholds ────────────────────────────────────────────────────
+const CONFIDENT_THRESHOLD = 0.60;
+const LOW_CONF_THRESHOLD  = 0.30;
 
 export interface MatchResult {
-  matched:          string;  // best candidate from the L7-8 list
-  score:            number;  // recall score 0–1
+  matched:          string;
+  score:            number;
   isLowConfidence:  boolean;
   noMatch:          boolean;
 }
 
 /**
  * Return the best-matching L7-8 product for a board recipe name.
- *
- * Scoring is board-first recall so that a short recipe name like
- * "Butter Chicken" scores 1.0 against "Coles Butter Chicken Sauce 500g"
- * rather than a low Jaccard score.
- *
  * Returns null only when `candidates` is empty.
  */
 export function bestMatch(boardProduct: string, candidates: string[]): MatchResult | null {
   if (!candidates.length) return null;
 
-  const boardTokens = tokenise(boardProduct);
+  // ── PASS 1: parenthetical-code match ─────────────────────────────────────
+  // "MEAT SAUCE EPP (EM)" → code "em" → search for candidate whose raw words
+  // include "em" → "EM/EB" wins immediately without going through recall.
+  const codes = extractParenCodes(boardProduct);
+  if (codes.length > 0) {
+    let bestCode: { candidate: string; score: number } | null = null;
+    for (const candidate of candidates) {
+      const cWords = rawWords(candidate);
+      const hits   = codes.filter(code => cWords.includes(code)).length;
+      if (hits > 0) {
+        const score = hits / codes.length;
+        if (!bestCode || score > bestCode.score) {
+          bestCode = { candidate, score };
+        }
+      }
+    }
+    if (bestCode) {
+      return {
+        matched:         bestCode.candidate,
+        score:           bestCode.score,
+        isLowConfidence: false,
+        noMatch:         false,
+      };
+    }
+  }
 
-  // No meaningful tokens after stripping — treat as no match
+  // ── PASS 2: board-first recall scoring ───────────────────────────────────
+  const boardTokens = tokenise(boardProduct);
   if (!boardTokens.size) {
     return { matched: candidates[0], score: 0, isLowConfidence: true, noMatch: true };
   }
@@ -119,10 +166,7 @@ export function bestMatch(boardProduct: string, candidates: string[]): MatchResu
     if (!cTokens.size) continue;
 
     const intersectionCount = [...boardTokens].filter(t => cTokens.has(t)).length;
-
-    // Primary: recall — what fraction of board keywords appear in the candidate
     const recall    = intersectionCount / boardTokens.size;
-    // Tiebreaker: precision — prefer candidates that don't have lots of extra tokens
     const precision = intersectionCount / cTokens.size;
 
     const isBetter =
