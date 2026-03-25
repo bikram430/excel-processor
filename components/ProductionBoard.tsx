@@ -892,7 +892,11 @@ interface Line78MatchItem {
 interface ProductionBoardProps { data: ExcelRow[]; }
 
 export function ProductionBoard({ data }: ProductionBoardProps) {
-  const boardRows     = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
+  // Memoize derived row arrays — prevents new array references every render
+  const boardRows = useMemo(
+    () => data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line)),
+    [data],
+  );
   const nonKettleRows = useMemo(
     () => data.filter(r => r.quantity > 0 && !BOARD_LINES.includes(r.line)),
     [data],
@@ -900,8 +904,9 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
 
   const [allItems, setAllItems] = useState<Record<string, BoardItem[]>>(() => {
     const result: Record<string, BoardItem[]> = {};
+    const rows0 = data.filter(r => r.quantity > 0 && BOARD_LINES.includes(r.line));
     for (const line of BOARD_LINES) {
-      const rows  = sortRowsBySequence(deduplicateRows(boardRows.filter(r => r.line === line)));
+      const rows  = sortRowsBySequence(deduplicateRows(rows0.filter(r => r.line === line)));
       const items = rows.map((r, i) => rowToBoardItem(r, i));
       // K4 and Blendtech: vegan-first + meat-type grouping + allergen grouping
       // All other lines: plain production-plan sequence order
@@ -910,8 +915,11 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     return result;
   });
 
-  // Derived from live state so it updates after smart assign
-  const activeLines = BOARD_LINES.filter(line => (allItems[line]?.length ?? 0) > 0);
+  // Derived from live state so it updates after smart assign — memoized to keep stable reference
+  const activeLines = useMemo(
+    () => BOARD_LINES.filter(line => (allItems[line]?.length ?? 0) > 0),
+    [allItems],
+  );
 
   const [activeId,        setActiveId]        = useState<string | null>(null);
   const [overLine,        setOverLine]         = useState<string | null>(null);
@@ -1013,12 +1021,18 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
     if (activeId || !boardRef.current) return;
     const board = boardRef.current;
     const cards = board.querySelectorAll<HTMLElement>('[data-row-pos]');
+    // First pass: clear minHeight to measure natural height
     cards.forEach(el => { el.style.minHeight = ''; });
+    // Second pass: group by row position, find tallest, set only if changed
     const byPos: Record<string, HTMLElement[]> = {};
     cards.forEach(el => { const pos = el.dataset.rowPos; if (pos) (byPos[pos] ??= []).push(el); });
     for (const group of Object.values(byPos)) {
+      if (group.length <= 1) continue; // single card in row — no equalization needed
       const maxH = Math.max(...group.map(el => el.offsetHeight));
-      group.forEach(el => { el.style.minHeight = `${maxH}px`; });
+      const target = `${maxH}px`;
+      group.forEach(el => {
+        if (el.style.minHeight !== target) el.style.minHeight = target;
+      });
     }
   }, [allItems, activeId, showMeat]);
 
