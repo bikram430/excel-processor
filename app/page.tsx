@@ -5,6 +5,7 @@ import { FileUpload }       from '@/components/FileUpload';
 import { DataTable }        from '@/components/DataTable';
 import { Summary }          from '@/components/Summary';
 import { ProductionBoard }  from '@/components/ProductionBoard';
+import { RecipesSection }   from '@/components/RecipesSection';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
 
@@ -22,6 +23,7 @@ const VALID_LINES = [
 ];
 
 export default function HomePage() {
+  const [section, setSection]               = useState<'production' | 'recipes'>('production');
   const [data, setData]                     = useState<ProcessedData | null>(null);
   const [enrichedRows, setEnrichedRows]     = useState<ExcelRow[]>([]);
   const [isLoading, setLoading]             = useState(false);
@@ -109,8 +111,10 @@ export default function HomePage() {
 
       {/* ── Sticky header ───────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+
+          {/* Logo */}
+          <div className="flex items-center gap-3 flex-shrink-0">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -118,21 +122,33 @@ export default function HomePage() {
                      h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0121 9.414V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-gray-900 leading-tight">
-                Production Line Analyser
-              </h1>
-              <p className="text-xs text-gray-400 hidden sm:block">
-                Upload → filter → batch → board
-              </p>
-            </div>
+            <h1 className="text-sm font-bold text-gray-900 leading-tight hidden sm:block">
+              Production Line Analyser
+            </h1>
           </div>
 
-          {data && (
+          {/* Nav tabs */}
+          <nav className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {(['production', 'recipes'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setSection(tab)}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors capitalize
+                  ${section === tab
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                {tab === 'recipes' ? 'Recipes' : 'Production'}
+              </button>
+            ))}
+          </nav>
+
+          {/* Contextual action */}
+          {section === 'production' && data ? (
             <button
               onClick={handleReset}
               className="inline-flex items-center gap-1.5 text-sm text-gray-500
-                         hover:text-blue-600 transition-colors"
+                         hover:text-blue-600 transition-colors flex-shrink-0"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -141,6 +157,8 @@ export default function HomePage() {
               </svg>
               New Upload
             </button>
+          ) : (
+            <div className="w-24 flex-shrink-0" />
           )}
         </div>
       </header>
@@ -195,6 +213,12 @@ export default function HomePage() {
       )}
 
       <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
+
+        {/* ── Recipes section ──────────────────────────────────────────────── */}
+        {section === 'recipes' && <RecipesSection />}
+
+        {/* ── Production section ───────────────────────────────────────────── */}
+        {section === 'production' && (<>
 
         {/* ── Upload panel ─────────────────────────────────────────────────── */}
         {!data && !isLoading && (
@@ -341,6 +365,7 @@ export default function HomePage() {
 
           </div>
         )}
+        </>)}
       </div>
     </main>
   );
