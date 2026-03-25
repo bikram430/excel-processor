@@ -83,6 +83,7 @@ function itemHasMeat(item: BoardItem): boolean {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const S = StyleSheet.create({
+  // ── Normal (simple / meat) page ──────────────────────────────────────────
   page: {
     flexDirection: 'column',
     backgroundColor: '#F8FAFC',
@@ -407,6 +408,250 @@ const S = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#1E293B',
   },
+
+  // ── Compact full-board (single-page) styles ───────────────────────────────
+  pageFull: {
+    flexDirection: 'column',
+    backgroundColor: '#F8FAFC',
+    paddingTop: 7,
+    paddingBottom: 7,
+    paddingLeft: 7,
+    paddingRight: 7,
+  },
+  pageHeaderFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A',
+    borderRadius: 4,
+    paddingTop: 5,
+    paddingBottom: 5,
+    paddingLeft: 10,
+    paddingRight: 10,
+    marginBottom: 5,
+  },
+  pageTitleFull: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#FFFFFF',
+  },
+  pageDateFull: {
+    fontSize: 6,
+    fontFamily: 'Helvetica',
+    color: '#94A3B8',
+  },
+  columnsRowFull: {
+    flexDirection: 'row',
+    flex: 1,
+    gap: 4,
+  },
+  columnFull: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  colHeaderFull: {
+    backgroundColor: '#1E293B',
+    borderRadius: 4,
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingLeft: 6,
+    paddingRight: 6,
+    marginBottom: 3,
+  },
+  colTitleFull: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#FFFFFF',
+  },
+  colStatsFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  colKgFull: {
+    fontSize: 8.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  cardFull: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'solid',
+    marginBottom: 2,
+  },
+  cipStripFull: {
+    backgroundColor: '#FFFBEB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+    borderBottomStyle: 'solid',
+    paddingTop: 2,
+    paddingBottom: 2,
+    paddingLeft: 5,
+    paddingRight: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cipDotFull: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#F59E0B',
+    marginRight: 4,
+  },
+  cipTextFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#B45309',
+  },
+  cardBodyFull: {
+    paddingTop: 3,
+    paddingBottom: 3,
+    paddingLeft: 4,
+    paddingRight: 4,
+  },
+  titleRowFull: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 1,
+  },
+  posBadgeFull: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 3,
+    flexShrink: 0,
+  },
+  posNumFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#94A3B8',
+  },
+  productNameFull: {
+    fontSize: 6.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#0F172A',
+    flex: 1,
+    lineHeight: 1.25,
+  },
+  totalKgFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica',
+    color: '#475569',
+    marginBottom: 2,
+    marginLeft: 13,
+  },
+  batchBoxFull: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 2,
+    paddingTop: 2,
+    paddingBottom: 2,
+    paddingLeft: 4,
+    paddingRight: 4,
+    marginBottom: 2,
+    marginLeft: 13,
+  },
+  batchRowFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 1,
+  },
+  batchNumFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#818CF8',
+    width: 11,
+  },
+  batchKgFull: {
+    fontSize: 6,
+    fontFamily: 'Helvetica-Bold',
+    color: '#4338CA',
+    flex: 1,
+  },
+  meatRowFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 1,
+    marginLeft: 11,
+  },
+  meatTypeFull: {
+    fontSize: 6,
+    width: 10,
+    flexShrink: 0,
+  },
+  meatDescFull: {
+    fontSize: 4.5,
+    fontFamily: 'Helvetica',
+    color: '#6B7280',
+    flex: 1,
+  },
+  meatQtyFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#374151',
+    width: 28,
+    textAlign: 'right',
+  },
+  allergenTimeFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 13,
+    marginTop: 2,
+  },
+  allergenPillFull: {
+    borderRadius: 8,
+    paddingTop: 1,
+    paddingBottom: 1,
+    paddingLeft: 4,
+    paddingRight: 4,
+    marginRight: 5,
+  },
+  allergenTextFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica-Bold',
+  },
+  timeLabelFull: {
+    fontSize: 5,
+    fontFamily: 'Helvetica',
+    color: '#94A3B8',
+    marginRight: 2,
+  },
+  timeValueFull: {
+    fontSize: 5.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1E293B',
+  },
+  subtotalFull: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderStyle: 'solid',
+    paddingTop: 3,
+    paddingBottom: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  subtotalLabelFull: {
+    fontSize: 5.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#166534',
+  },
+  subtotalKgFull: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica-Bold',
+    color: '#166534',
+  },
 });
 
 // ── Simple Card (Mode 1) ───────────────────────────────────────────────────
@@ -530,6 +775,81 @@ function FullCardView({ item, position, hasCIP, showMeat }: {
             <Text style={S.timeValue}>{fmtTime(item.time)}</Text>
           </View>
         )}
+      </View>
+    </View>
+  );
+}
+
+// ── Compact Full Card (single-page mode) ──────────────────────────────────
+
+function CompactFullCard({ item, position, hasCIP }: {
+  item: BoardItem;
+  position: number;
+  hasCIP: boolean;
+}) {
+  const allergenKey = item.allergens[0] ?? 'ALLERGEN_FREE';
+  const alg         = ALLERGEN_INFO[allergenKey] ?? ALLERGEN_INFO.ALLERGEN_FREE;
+  const sizes       = parseBatchSizes(item.batchBreakdown, item.batches, item.quantity);
+  const allBatchMeat = sizes.map(b =>
+    calculateMeat(item.itemCode, b.kg, recipesMap, subRecipesMap)
+  );
+
+  return (
+    <View style={S.cardFull}>
+      {hasCIP && (
+        <View style={S.cipStripFull}>
+          <View style={S.cipDotFull} />
+          <Text style={S.cipTextFull}>CIP / CLEAN BEFORE THIS</Text>
+        </View>
+      )}
+      <View style={S.cardBodyFull}>
+        {/* Title */}
+        <View style={S.titleRowFull}>
+          <View style={S.posBadgeFull}>
+            <Text style={S.posNumFull}>{position}</Text>
+          </View>
+          <Text style={S.productNameFull}>{item.product}</Text>
+        </View>
+
+        {/* Total */}
+        <Text style={S.totalKgFull}>
+          {item.quantity.toLocaleString()} kg · {item.batches} batch{item.batches !== 1 ? 'es' : ''}
+        </Text>
+
+        {/* Batch breakdown with per-batch meat */}
+        <View style={S.batchBoxFull}>
+          {sizes.map((b, i) => {
+            const meat = allBatchMeat[i] ?? [];
+            return (
+              <View key={i}>
+                <View style={S.batchRowFull}>
+                  <Text style={S.batchNumFull}>*{i + 1}</Text>
+                  <Text style={S.batchKgFull}>{b.kg.toLocaleString()} kg</Text>
+                </View>
+                {meat.map((m, mi) => (
+                  <View key={mi} style={S.meatRowFull}>
+                    <Text style={S.meatTypeFull}>{MEAT_ABBR[m.meat_type]}</Text>
+                    <Text style={S.meatDescFull}>{m.ingredient_description}</Text>
+                    <Text style={S.meatQtyFull}>{m.qty_kg.toFixed(2)} kg</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Allergen + time on one row */}
+        <View style={S.allergenTimeFull}>
+          <View style={[S.allergenPillFull, { backgroundColor: alg.bg }]}>
+            <Text style={[S.allergenTextFull, { color: alg.fg }]}>{alg.label}</Text>
+          </View>
+          {!!item.time && (
+            <>
+              <Text style={S.timeLabelFull}>Start:</Text>
+              <Text style={S.timeValueFull}>{item.time}</Text>
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -667,6 +987,45 @@ function NonKettleMeatSection({ items }: { items: NonKettleItemForPdf[] }) {
   );
 }
 
+// ── Compact column (full single-page mode) ─────────────────────────────────
+
+function CompactColumnView({ line, items }: { line: string; items: BoardItem[] }) {
+  if (items.length === 0) return null;
+
+  const label        = LINE_LABEL[line] ?? line;
+  const totalKg      = items.reduce((s, i) => s + i.quantity, 0);
+  const totalBatches = items.reduce((s, i) => s + i.batches, 0);
+
+  const cleanBefore = new Set<string>();
+  for (let i = 1; i < items.length; i++) {
+    if (needsCleaning(items[i - 1], items[i])) cleanBefore.add(items[i].id);
+  }
+
+  return (
+    <View style={S.columnFull}>
+      <View style={S.colHeaderFull}>
+        <Text style={S.colTitleFull}>{label}</Text>
+        <Text style={S.colStatsFull}>
+          {items.length} products · {totalBatches} batches
+        </Text>
+        <Text style={S.colKgFull}>{totalKg.toLocaleString()} kg</Text>
+      </View>
+      {items.map((item, i) => (
+        <CompactFullCard
+          key={item.id}
+          item={item}
+          position={i + 1}
+          hasCIP={cleanBefore.has(item.id)}
+        />
+      ))}
+      <View style={S.subtotalFull}>
+        <Text style={S.subtotalLabelFull}>SUBTOTAL</Text>
+        <Text style={S.subtotalKgFull}>{totalKg.toLocaleString()} kg</Text>
+      </View>
+    </View>
+  );
+}
+
 // ── Mode title helper ───────────────────────────────────────────────────────
 
 function modeLabel(mode: PdfMode): string {
@@ -697,6 +1056,30 @@ export function BoardPdfDocument({
     ? activeLines.filter(l => (lineMap[l] ?? []).some(itemHasMeat))
     : activeLines;
 
+  // ── Full mode: compact single-page layout ──
+  if (mode === 'full') {
+    return (
+      <Document>
+        <Page size="A3" orientation="landscape" style={S.pageFull}>
+          <View style={S.pageHeaderFull}>
+            <Text style={S.pageTitleFull}>PRODUCTION BOARD — Full View</Text>
+            <Text style={S.pageDateFull}>Generated: {dateStr}</Text>
+          </View>
+          <View style={S.columnsRowFull}>
+            {visibleLines.map(line => (
+              <CompactColumnView
+                key={line}
+                line={line}
+                items={lineMap[line] ?? []}
+              />
+            ))}
+          </View>
+        </Page>
+      </Document>
+    );
+  }
+
+  // ── Simple / Meat modes: standard multi-page layout ──
   return (
     <Document>
       <Page size="A3" orientation="landscape" style={S.page}>
