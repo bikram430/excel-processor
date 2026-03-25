@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"smartAssignKettles\\\\|getPreferredKettles\" /c/Users/bikra/excel-processor --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|json\\)$\")",
+      "Bash(grep -rn \"localStorage\\\\|window\\\\.\" /c/Users/bikra/excel-processor/components /c/Users/bikra/excel-processor/app /c/Users/bikra/excel-processor/lib --include=*.tsx --include=*.ts)",
+      "Bash(node -e \"const pkg = require\\(''./node_modules/@react-pdf/renderer/package.json''\\); console.log\\(pkg.version\\);\")",
+      "Bash(node -e \"const rf = require\\(''@react-pdf/renderer''\\); console.log\\(Object.keys\\(rf.Font || {}\\)\\);\")",
+      "Bash(vercel --version)",
+      "Bash(grep -n \"type=\"\"time\"\"\" c:/Users/bikra/excel-processor/components/*.tsx c:/Users/bikra/excel-processor/app/*.tsx)",
+      "Bash(npm run:*)",
+      "Bash(xargs cat:*)",
+      "Bash(wc -l /c/Users/bikra/excel-processor/lib/*.ts /c/Users/bikra/excel-processor/components/*.tsx /c/Users/bikra/excel-processor/app/*.tsx /c/Users/bikra/excel-processor/app/api/*/*.ts)",
+      "Bash(gh api:*)",
+      "Bash(grep -r \"unstable_batchedUpdates\\\\|findDOMNode\\\\|createContext\" c:/Users/bikra/excel-processor/node_modules/@dnd-kit/core/dist/ --include=*.js -l)",
+      "Bash(grep -v \"^\\\\s*//\")"
+    ]
+  }
+}

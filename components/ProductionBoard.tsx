@@ -142,6 +142,14 @@ const LINE78_TARGET_LINES = new Set([
 // K4 and Blendtech use CIP-minimising order (not plain sequence)
 const K4_BT_LINES = new Set(['KETTLE 4 KAPCOLD', 'BLENDTECH']);
 
+// ── Stable sensor option objects (module-level so they never change reference) ─
+// Inline objects create new references every render → useSensor/useSensors
+// recompute → internalContext changes → ALL sortable/droppable hooks re-render.
+const MOUSE_SENSOR_OPTIONS  = { activationConstraint: { distance: 5 } } as const;
+const TOUCH_SENSOR_OPTIONS  = { activationConstraint: { delay: 250, tolerance: 8 } } as const;
+const KEYBOARD_SENSOR_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates } as const;
+const DROP_ANIMATION = { duration: 150, easing: 'ease' } as const;
+
 // Meat type sort priority (group same meats together)
 const MEAT_TYPE_ORDER: Record<string, number> = {
   Beef: 1, Chicken: 2, Lamb: 3, Pork: 4, Other: 5,
@@ -742,10 +750,18 @@ function SortableCard({
    * dragHandleProps applied ONLY to the compact header (pill + name row).
    * Expanded section (allergens, time, move-to) has no listeners,
    * so touch there scrolls normally.
+   *
+   * We must NOT simply override listeners.onPointerDown — MouseSensor registers
+   * its activation handler there. Instead we call both the dnd-kit handler and
+   * our own holding-state setter.
    */
+  const dndPointerDown = listeners?.onPointerDown;
   const dragHandleProps = {
     ...listeners,
-    onPointerDown:  () => setIsHolding(true),
+    onPointerDown:  (e: React.PointerEvent<HTMLDivElement>) => {
+      setIsHolding(true);
+      dndPointerDown?.(e);
+    },
     onPointerUp:    () => setIsHolding(false),
     onPointerCancel:() => setIsHolding(false),
     onPointerLeave: () => setIsHolding(false),
@@ -1044,13 +1060,9 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
    *   when the delay elapses, which stops the browser from scrolling the page.
    */
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 8 },
-    }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor,   MOUSE_SENSOR_OPTIONS),
+    useSensor(TouchSensor,   TOUCH_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
   async function handleDownload(mode: 'simple' | 'meat' | 'full') {
@@ -1583,7 +1595,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       </div>
 
       {/* ── Floating ghost while dragging ── */}
-      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+      <DragOverlay dropAnimation={DROP_ANIMATION}>
         {activeItem && (
           <div className="rotate-2 shadow-2xl w-52 opacity-95 ring-2 ring-indigo-400 rounded-xl">
             <ProductCard item={activeItem} position={0} showMeat={false} />
