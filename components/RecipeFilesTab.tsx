@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { downloadRecipesZip } from '@/lib/apiClient';
 
-// ─── Supabase anon client (read-only, safe to expose) ────────────────────────
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+// ─── Supabase anon client — lazy so build doesn't fail without env vars ──────
+let _sb: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_sb) {
+    _sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+  }
+  return _sb;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -182,7 +188,7 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
       setError(null);
 
       try {
-        const { data, error: sbError } = await supabase
+        const { data, error: sbError } = await getSupabase()
           .from('recipe_files')
           .select('file_name, item_code, file_type, batch_number, batch_size_kg')
           .eq('run_id', runId)
@@ -213,7 +219,7 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
       return next;
     });
 
-    const { data } = await supabase
+    const { data } = await getSupabase()
       .from('recipe_ingredients')
       .select('file_name, mix, ingredient_code, description, percentage, new_batch_qty')
       .eq('run_id', runId)
