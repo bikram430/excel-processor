@@ -358,6 +358,99 @@ async def download_recipes_zip(run_id: str) -> StreamingResponse:
     )
 
 
+class BatchEntry(BaseModel):
+    item_code: str
+    batch_sizes: list[float]
+
+
+class BatchRunRequest(BaseModel):
+    entries: list[BatchEntry]
+    notes: Optional[str] = None
+
+
+def _write_batching_xlsx(entries: list[BatchEntry]) -> None:
+    """Write batching_recipes.xlsx that RecipeBatchPrinter.py reads."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Item Code", "Batch Size"])
+    for entry in entries:
+        if not entry.batch_sizes:
+            continue
+        # Convert [1500, 1500, 1500] → "1500/1500/1500"
+        batch_str = "/".join(str(int(s)) for s in entry.batch_sizes)
+        ws.append([entry.item_code, batch_str])
+    dest = RECIPE_AUTOMATION_DIR / "batching_recipes.xlsx"
+    wb.save(dest)
+
+
+@app.post("/api/runs/from-batches", response_model=RunStatus, status_code=202)
+async def run_from_batches(body: BatchRunRequest, background_tasks: BackgroundTasks) -> RunStatus:
+    """Accept pre-calculated batch sizes, generate batching_recipes.xlsx, run pipeline."""
+    _write_batching_xlsx(body.entries)
+    run_id = str(uuid.uuid4())
+    supabase.table("runs").insert(
+        {"id": run_id, "status": "queued", "notes": body.notes}
+    ).execute()
+    background_tasks.add_task(run_pipeline_recipes_only, run_id)
+    return RunStatus(run_id=run_id, status="queued")
+
+
+async def run_pipeline_recipes_only(run_id: str) -> None:
+    """Run only RecipeBatchPrinter.py (batching_recipes.xlsx already written)."""
+    temp_dir = RECIPE_AUTOMATION_DIR / "temp_print"
+    try:
+        supabase.table("runs").update({"status": "running"}).eq("id", run_id).execute()
+        python = sys.executable
+        script_path = RECIPE_AUTOMATION_DIR / "RecipeBatchPrinter.py"
+        if script_path.exists():
+            proc = await asyncio.create_subprocess_exec(
+                python, str(script_path),
+                cwd=str(RECIPE_AUTOMATION_DIR),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"RecipeBatchPrinter.py failed: {stderr.decode()}")
+
+        if temp_dir.exists():
+            recipe_file_records: list[dict] = []
+            ingredient_records: list[dict] = []
+            for xlsx_path in sorted(temp_dir.glob("*.xlsx")):
+                filename = xlsx_path.name
+                meta = _classify_file(filename)
+                if meta is None:
+                    continue
+                storage_path = f"{run_id}/{filename}"
+                with open(xlsx_path, "rb") as fh:
+                    supabase.storage.from_(STORAGE_BUCKET).upload(
+                        storage_path, fh.read(),
+                        {"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         "upsert": "true"},
+                    )
+                recipe_file_records.append({"run_id": run_id, "file_name": filename,
+                                             "storage_path": storage_path, **meta})
+                for row in _parse_recipe_file(xlsx_path):
+                    ingredient_records.append({"run_id": run_id, "file_name": filename,
+                                                "item_code": meta["item_code"],
+                                                "file_type": meta["file_type"],
+                                                "batch_number": meta["batch_number"],
+                                                "batch_size_kg": meta["batch_size_kg"], **row})
+            if recipe_file_records:
+                supabase.table("recipe_files").insert(recipe_file_records).execute()
+            if ingredient_records:
+                supabase.table("recipe_ingredients").insert(ingredient_records).execute()
+            for f in temp_dir.glob("*.xlsx"):
+                f.unlink(missing_ok=True)
+
+        supabase.table("runs").update({"status": "done"}).eq("id", run_id).execute()
+    except Exception as exc:
+        supabase.table("runs").update(
+            {"status": "error", "error_message": str(exc)}
+        ).eq("id", run_id).execute()
+        raise
+
+
 @app.post("/api/runs/upload", response_model=RunStatus, status_code=202)
 async def upload_and_run(
     background_tasks: BackgroundTasks,

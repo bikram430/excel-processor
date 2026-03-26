@@ -6,13 +6,27 @@ import { listRuns, getRun, uploadAndRun, RunSummary } from '@/lib/apiClient';
 
 type Stage = 'idle' | 'uploading' | 'polling' | 'done' | 'error';
 
-export function RecipesSection() {
+interface RecipesSectionProps {
+  pendingRunId?: string | null;
+}
+
+export function RecipesSection({ pendingRunId }: RecipesSectionProps) {
   const [stage, setStage]     = useState<Stage>('idle');
   const [runId, setRunId]     = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── If a run was started from the Production tab, begin polling it ────────
+  useEffect(() => {
+    if (pendingRunId && stage === 'idle') {
+      setRunId(pendingRunId);
+      setStage('polling');
+      setStatusMsg('Generating recipe files…');
+      startPolling(pendingRunId);
+    }
+  }, [pendingRunId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load recent runs on mount ─────────────────────────────────────────────
   useEffect(() => {

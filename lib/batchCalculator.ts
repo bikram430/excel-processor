@@ -73,6 +73,8 @@ export interface BatchResult {
   batchBreakdown: string;
   /** Max kg loaded into the kettle/equipment for a single physical batch or cycle */
   physicalBatchSize: number;
+  /** Individual batch sizes in kg (used for recipe file generation) */
+  batchSizes: number[];
 }
 
 // ── CQC ───────────────────────────────────────────────────────────────────
@@ -84,7 +86,7 @@ function cqcBatch(qty: number, spec: CQCSpec): BatchResult {
     recipesNeeded === 1
       ? `${recipesNeeded} recipe × ${requiredCycles} cycle${requiredCycles !== 1 ? 's' : ''} × ${maxBatchSize}kg`
       : `${recipesNeeded} recipes × up to ${cyclesPerRecipe} cycles × ${maxBatchSize}kg`;
-  return { batches: recipesNeeded, batchBreakdown: breakdown, physicalBatchSize: maxBatchSize };
+  return { batches: recipesNeeded, batchBreakdown: breakdown, physicalBatchSize: maxBatchSize, batchSizes: [] };
 }
 
 // ── Meat Sauce EPP (input 1900 → output 2000 per batch) ───────────────────
@@ -110,47 +112,44 @@ function meatSauceBatch(qty: number): BatchResult {
       : `${INPUT_PER_BATCH}×${fullBatches} / ${partialInput}×1`;
   }
 
+  const batchSizes = fullBatches > 0
+    ? [...Array(fullBatches).fill(INPUT_PER_BATCH), ...(hasPartial ? [Math.ceil(remainingOut * RATIO)] : [])]
+    : [Math.ceil(remainingOut * RATIO)];
   return {
     batches:           totalBatches,
     batchBreakdown:    breakdown,
     physicalBatchSize: INPUT_PER_BATCH,
+    batchSizes,
   };
 }
 
-// ── General batch (configurable cap) ──────────────────────────────────────
+// ── General batch (configurable cap, min = cap/2) ─────────────────────────
+// Splits qty into the fewest equal-sized batches that each fit within `cap`.
+// Equal splitting ensures no batch falls below cap/2 (e.g. min 1000 when cap=2000).
+// Example: 4500 kg, cap 2000 → 3 batches of 1500 kg each (NOT 2000+2000+500).
 function generalBatch(qty: number, cap: number): BatchResult {
-  if (qty <= cap) {
-    return { batches: 1, batchBreakdown: `${qty}×1`, physicalBatchSize: qty };
-  }
-  if (qty < cap * 2) {
-    const half = Math.ceil(qty / 2);
-    return { batches: 2, batchBreakdown: `${half}×2`, physicalBatchSize: half };
-  }
-  let remaining   = qty;
-  let fullBatches = 0;
-  while (remaining >= cap * 2) {
-    remaining   -= cap;
-    fullBatches += 1;
-  }
-  const half         = Math.ceil(remaining / 2);
-  const totalBatches = fullBatches + 2;
-  const breakdown    = fullBatches > 0 ? `${cap}×${fullBatches} / ${half}×2` : `${half}×2`;
-  // The full-size batches are `cap` kg each — that is the physical max
-  return { batches: totalBatches, batchBreakdown: breakdown, physicalBatchSize: cap };
+  const n        = Math.max(Math.ceil(qty / cap), 1);
+  const perBatch = Math.ceil(qty / n);
+  const lastBatch = qty - perBatch * (n - 1);
+  const batchSizes: number[] = [...Array(n - 1).fill(perBatch), lastBatch];
+  const breakdown = lastBatch === perBatch
+    ? `${perBatch}×${n}`
+    : `${perBatch}×${n - 1} / ${lastBatch}×1`;
+  return { batches: n, batchBreakdown: breakdown, physicalBatchSize: perBatch, batchSizes };
 }
 
 // ── Low-capacity (Vegan Lasagne, Minestrone Soup) ─────────────────────────
 function lowCapBatch(qty: number): BatchResult {
   const n        = Math.max(Math.ceil(qty / 1000), 1);
   const perBatch = Math.ceil(qty / n);
-  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
+  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch, batchSizes: Array(n).fill(perBatch) };
 }
 
 // ── Rice batch — max 220 kg, size rounded up to nearest 5 ─────────────────
 function riceBatch(qty: number): BatchResult {
   const n        = Math.max(Math.ceil(qty / RICE_MAX), 1);
   const perBatch = roundTo5(Math.ceil(qty / n));
-  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch };
+  return { batches: n, batchBreakdown: `${perBatch}×${n}`, physicalBatchSize: perBatch, batchSizes: Array(n).fill(perBatch) };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -160,7 +159,7 @@ export function calculateBatch(
   qty: number,
   butterChickenCap = DEFAULT_CAP
 ): BatchResult {
-  if (qty <= 0) return { batches: 0, batchBreakdown: '—', physicalBatchSize: 0 };
+  if (qty <= 0) return { batches: 0, batchBreakdown: '—', physicalBatchSize: 0, batchSizes: [] };
 
   const codeUpper    = (itemCode  ?? '').toUpperCase().trim();
   const productUpper = (product   ?? '').toUpperCase();
@@ -185,9 +184,9 @@ export function hasButterChicken(rows: ExcelRow[]): boolean {
 
 export function calculateBatches(rows: ExcelRow[], butterChickenCap = DEFAULT_CAP): ExcelRow[] {
   return rows.map(r => {
-    const { batches, batchBreakdown, physicalBatchSize } = calculateBatch(
+    const { batches, batchBreakdown, physicalBatchSize, batchSizes } = calculateBatch(
       r.product, r.itemCode, r.quantity, butterChickenCap
     );
-    return { ...r, batches, batchBreakdown, physicalBatchSize };
+    return { ...r, batches, batchBreakdown, physicalBatchSize, batchSizes };
   });
 }

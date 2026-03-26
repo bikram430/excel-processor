@@ -13,6 +13,7 @@ export interface ExcelRow {
   batches?: number;
   batchBreakdown?: string;
   physicalBatchSize?: number; // max kg in a single physical batch/cycle (for compatibility checks)
+  batchSizes?: number[];      // individual batch sizes in kg (for recipe file generation)
 }
 
 /** One item on the Production Board */

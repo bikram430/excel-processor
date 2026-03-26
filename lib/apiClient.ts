@@ -58,6 +58,24 @@ export async function listRuns(limit = 10): Promise<RunSummary[]> {
   return res.json();
 }
 
+export interface BatchEntry {
+  item_code: string;
+  batch_sizes: number[];
+}
+
+export async function createRunFromBatches(entries: BatchEntry[], notes?: string): Promise<RunStatus> {
+  const res = await fetch(`${BASE_URL}/api/runs/from-batches`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entries, notes }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to start run: ${text}`);
+  }
+  return res.json();
+}
+
 // ─── Recipe ZIP download ───────────────────────────────────────────────────────
 
 /**
