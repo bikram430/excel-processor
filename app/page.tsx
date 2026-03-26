@@ -8,7 +8,6 @@ import { ProductionBoard }  from '@/components/ProductionBoard';
 import { RecipesSection }   from '@/components/RecipesSection';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
-import { createRunFromBatches }                 from '@/lib/apiClient';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -33,7 +32,6 @@ export default function HomePage() {
   const [showAnalytics, setShowAnalytics]   = useState(false);
   const [showBoard, setShowBoard]           = useState(false);
   const [recipeRunId, setRecipeRunId]       = useState<string | null>(null);
-  const [generatingRecipes, setGeneratingRecipes] = useState(false);
 
   // Butter Chicken batch size confirmation
   const [showBCModal, setShowBCModal]       = useState(false);
@@ -99,24 +97,10 @@ export default function HomePage() {
     setPendingRows([]);
   }
 
-  async function handleGenerateRecipes() {
-    const rows = enrichedRows.length > 0 ? enrichedRows : data?.filteredData ?? [];
-    const entries = rows
-      .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
-      .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
-    if (entries.length === 0) return;
-    try {
-      setGeneratingRecipes(true);
-      const run = await createRunFromBatches(entries);
-      setRecipeRunId(run.run_id);
-      setSection('recipes');
-    } catch {
-      // Recipes section will show connection error if backend not running
-      setSection('recipes');
-    } finally {
-      setGeneratingRecipes(false);
-    }
-  }
+  // Batch entries derived from enriched rows — passed to RecipesSection
+  const currentBatches = (enrichedRows.length > 0 ? enrichedRows : data?.filteredData ?? [])
+    .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
+    .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
 
   function handleReset() {
     setData(null);
@@ -238,7 +222,12 @@ export default function HomePage() {
       <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
 
         {/* ── Recipes section ──────────────────────────────────────────────── */}
-        {section === 'recipes' && <RecipesSection pendingRunId={recipeRunId} />}
+        {section === 'recipes' && (
+          <RecipesSection
+            currentBatches={currentBatches.length > 0 ? currentBatches : undefined}
+            pendingRunId={recipeRunId}
+          />
+        )}
 
         {/* ── Production section ───────────────────────────────────────────── */}
         {section === 'production' && (<>
@@ -315,37 +304,6 @@ export default function HomePage() {
                 <p className="text-sm text-amber-700">{warning}</p>
               </div>
             )}
-
-            {/* ── Generate Recipe Files button ─────────────────────────────── */}
-            <div className="flex justify-end">
-              <button
-                onClick={handleGenerateRecipes}
-                disabled={generatingRecipes}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold
-                           text-white bg-emerald-600 rounded-xl hover:bg-emerald-700
-                           disabled:opacity-60 transition-colors shadow-sm"
-              >
-                {generatingRecipes ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                    </svg>
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0
-                           002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2
-                           0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    Generate Recipe Files
-                  </>
-                )}
-              </button>
-            </div>
 
             {/* ── Production Board (top) ────────────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
