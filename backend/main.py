@@ -7,7 +7,7 @@ Required env vars:
   SUPABASE_URL          – project URL (https://xxx.supabase.co)
   SUPABASE_SERVICE_KEY  – service-role key (kept server-side only)
   RECIPE_AUTOMATION_DIR – path to the folder containing the Python scripts
-                          (default: C:\\Users\\bikra\\Downloads\\RecipeAutomation)
+                          (default: backend/pipeline/ relative to this file)
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import re
 import sys
 import uuid
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -37,12 +38,15 @@ load_dotenv()  # reads backend/.env
 
 SUPABASE_URL: str        = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str = os.environ["SUPABASE_SERVICE_KEY"]
+# On Railway: set RECIPE_AUTOMATION_DIR env var, e.g. /app/pipeline
+# Locally: defaults to the pipeline/ subfolder next to this file
 RECIPE_AUTOMATION_DIR = Path(
     os.environ.get(
         "RECIPE_AUTOMATION_DIR",
-        r"C:\Users\bikra\Downloads\RecipeAutomation",
+        str(Path(__file__).parent / "pipeline"),
     )
 )
+MASTER_BUCKET  = "master-recipes"
 STORAGE_BUCKET = "recipe-outputs"
 HEADER_ROW = 6  # Row 6 contains column headers in every recipe xlsx
 
@@ -58,15 +62,63 @@ _RE_MARINATION = re.compile(
     r"^MARINATION_(\w+)_(\w+)_BATCH(\d+)_(\d+)kg\.xlsx$", re.IGNORECASE
 )
 
+# ─────────────────── Startup: download master recipe files ───────────────────
+
+MASTER_FILES = [
+    "Recipes/KETTLEANDBLENDTECH.xlsx",
+    "Recipes/SOUP.xlsx",
+    "Recipes/SAUCE.xlsx",
+    "Recipes/PASTRY.xlsx",
+    "Recipes/MARINATION.xlsx",
+    "Recipes/WOK.xlsx",
+    "Recipes/RICE.xlsx",
+    "Recipes/CQC.xlsx",
+]
+
+
+async def download_master_files() -> None:
+    """
+    Download password-protected master recipe files from Supabase Storage
+    into RECIPE_AUTOMATION_DIR/Recipes/ so the pipeline scripts can find them.
+    Skips files that already exist locally (avoids re-downloading on restart).
+    """
+    recipes_dir = RECIPE_AUTOMATION_DIR / "Recipes"
+    recipes_dir.mkdir(parents=True, exist_ok=True)
+
+    for rel_path in MASTER_FILES:
+        dest = RECIPE_AUTOMATION_DIR / rel_path
+        if dest.exists():
+            continue  # already downloaded
+        try:
+            data = supabase.storage.from_(MASTER_BUCKET).download(rel_path)
+            dest.write_bytes(data)
+            print(f"[startup] Downloaded {rel_path}")
+        except Exception as exc:
+            print(f"[startup] WARNING: could not download {rel_path}: {exc}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure pipeline directory and temp_print exist
+    (RECIPE_AUTOMATION_DIR / "temp_print").mkdir(parents=True, exist_ok=True)
+    await download_master_files()
+    yield
+
+
 # ─────────────────────────────── App ─────────────────────────────────────────
 
-app = FastAPI(title="Recipe Automation API")
+app = FastAPI(title="Recipe Automation API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://excel-processor-icbl.vercel.app",
+        "https://*.vercel.app",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 
