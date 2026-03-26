@@ -37,6 +37,7 @@ const BUTTER_CHICKEN_CODE = 'WBSCCP1000';
 const BECHAMEL_CODE       = 'WBLSCCP10000';
 const LOW_CAPACITY_PRODUCTS = ['VEGAN LASAGNE', 'MINESTRONE SOUP', 'CHICKEN NOODLE SOUP'];
 const DEFAULT_CAP = 2000;
+const MIN_BATCH   = 1000; // No physical batch printed below this size
 
 // ── WOK / Oven / Misc per-product max batch sizes ──────────────────────────
 // Items not in this map use the default generalBatch cap.
@@ -90,47 +91,35 @@ function cqcBatch(qty: number, spec: CQCSpec): BatchResult {
 }
 
 // ── Meat Sauce EPP (input 1900 → output 2000 per batch) ───────────────────
-// Ratio: 0.95 kg input = 1 kg output (1900 in / 2000 out).
-// Full batches use 1900 kg input each. Partial batches scale by 0.95.
+// Converts output qty → total input qty (×0.95), then uses generalBatch so
+// the same MIN_BATCH / equal-split rules apply (no tiny leftover batches).
 function meatSauceBatch(qty: number): BatchResult {
-  const INPUT_PER_BATCH  = 1900;
-  const OUTPUT_PER_BATCH = 2000;
-  const RATIO            = INPUT_PER_BATCH / OUTPUT_PER_BATCH; // 0.95
-
-  const fullBatches  = Math.floor(qty / OUTPUT_PER_BATCH);
-  const remainingOut = qty % OUTPUT_PER_BATCH;
-  const hasPartial   = remainingOut > 0;
-  const totalBatches = fullBatches + (hasPartial ? 1 : 0);
-
-  let breakdown: string;
-  if (!hasPartial) {
-    breakdown = `${INPUT_PER_BATCH}×${fullBatches}`;
-  } else {
-    const partialInput = Math.ceil(remainingOut * RATIO);
-    breakdown = fullBatches === 0
-      ? `${partialInput}×1`
-      : `${INPUT_PER_BATCH}×${fullBatches} / ${partialInput}×1`;
-  }
-
-  const batchSizes = fullBatches > 0
-    ? [...Array(fullBatches).fill(INPUT_PER_BATCH), ...(hasPartial ? [Math.ceil(remainingOut * RATIO)] : [])]
-    : [Math.ceil(remainingOut * RATIO)];
-  return {
-    batches:           totalBatches,
-    batchBreakdown:    breakdown,
-    physicalBatchSize: INPUT_PER_BATCH,
-    batchSizes,
-  };
+  const INPUT_PER_BATCH = 1900;
+  const totalInput = Math.ceil(qty * (INPUT_PER_BATCH / 2000));
+  return generalBatch(totalInput, INPUT_PER_BATCH);
 }
 
-// ── General batch (configurable cap, min = cap/2) ─────────────────────────
-// Splits qty into the fewest equal-sized batches that each fit within `cap`.
-// Equal splitting ensures no batch falls below cap/2 (e.g. min 1000 when cap=2000).
-// Example: 4500 kg, cap 2000 → 3 batches of 1500 kg each (NOT 2000+2000+500).
+// ── General batch (configurable cap, hard min = MIN_BATCH) ────────────────
+// Splits qty into the fewest equal batches each ≤ cap.
+// If the last (smallest) batch would be < MIN_BATCH, removes one batch so
+// each batch is slightly larger — preserving the minimum even if it slightly
+// exceeds cap (e.g. Butter Chicken 1900 kg → 1 batch, not 2 × 950 kg).
 function generalBatch(qty: number, cap: number): BatchResult {
-  const n        = Math.max(Math.ceil(qty / cap), 1);
-  const perBatch = Math.ceil(qty / n);
-  const lastBatch = qty - perBatch * (n - 1);
+  let n        = Math.max(Math.ceil(qty / cap), 1);
+  let perBatch = Math.ceil(qty / n);
+  let lastBatch = qty - perBatch * (n - 1);
+
+  // If the last batch is below the minimum and reducing batch count still keeps
+  // each batch ≥ MIN_BATCH, use n-1 batches (may slightly exceed cap).
+  if (lastBatch < MIN_BATCH && n > 1) {
+    const nAlt       = n - 1;
+    const perAlt     = Math.ceil(qty / nAlt);
+    const lastAlt    = qty - perAlt * (nAlt - 1);
+    if (lastAlt >= MIN_BATCH) {
+      n = nAlt; perBatch = perAlt; lastBatch = lastAlt;
+    }
+  }
+
   const batchSizes: number[] = [...Array(n - 1).fill(perBatch), lastBatch];
   const breakdown = lastBatch === perBatch
     ? `${perBatch}×${n}`
