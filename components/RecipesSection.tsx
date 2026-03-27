@@ -26,9 +26,11 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
   useEffect(() => {
     if (pendingRunId && stage === 'idle') {
       setRunId(pendingRunId);
-      setStage('done');
+      setStage('polling');
+      setStatusMsg('Queued…');
+      startPolling(pendingRunId);
     }
-  }, [pendingRunId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingRunId, startPolling]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load recent runs on mount ─────────────────────────────────────────────
   useEffect(() => {
