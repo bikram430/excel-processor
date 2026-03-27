@@ -16,6 +16,7 @@ import asyncio
 import io
 import os
 import re
+import subprocess
 import sys
 import uuid
 import zipfile
@@ -115,6 +116,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ──────────────────────── Subprocess helper ──────────────────────────────────
+
+
+async def _run_script(script_path: Path, cwd: Path) -> None:
+    """Run a Python script in a thread executor (works on Windows + Linux)."""
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: subprocess.run(
+            [sys.executable, str(script_path)],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+        ),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"{script_path.name} failed:\n{result.stderr}")
 
 
 # ──────────────────────── Pipeline models ────────────────────────────────────
@@ -244,22 +264,12 @@ async def run_pipeline(run_id: str, production_file: str) -> None:
         supabase.table("runs").update({"status": "running"}).eq("id", run_id).execute()
 
         # ── Step 1: Run automation scripts ───────────────────────────────────
-        python = sys.executable
         scripts = ["Read.py", "RecipeBatchPrinter.py", "Meatextractor.py", "templeteeditor.py"]
-
         for script in scripts:
             script_path = RECIPE_AUTOMATION_DIR / script
             if not script_path.exists():
                 continue
-            proc = await asyncio.create_subprocess_exec(
-                python, str(script_path),
-                cwd=str(RECIPE_AUTOMATION_DIR),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                raise RuntimeError(f"{script} failed: {stderr.decode()}")
+            await _run_script(script_path, RECIPE_AUTOMATION_DIR)
 
         # ── Step 2: Upload files + parse ingredients ──────────────────────────
         if temp_dir.exists():
@@ -447,18 +457,9 @@ async def run_pipeline_recipes_only(run_id: str) -> None:
     temp_dir = RECIPE_AUTOMATION_DIR / "temp_print"
     try:
         supabase.table("runs").update({"status": "running"}).eq("id", run_id).execute()
-        python = sys.executable
         script_path = RECIPE_AUTOMATION_DIR / "RecipeBatchPrinter.py"
         if script_path.exists():
-            proc = await asyncio.create_subprocess_exec(
-                python, str(script_path),
-                cwd=str(RECIPE_AUTOMATION_DIR),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                raise RuntimeError(f"RecipeBatchPrinter.py failed: {stderr.decode()}")
+            await _run_script(script_path, RECIPE_AUTOMATION_DIR)
 
         if temp_dir.exists():
             recipe_file_records: list[dict] = []
