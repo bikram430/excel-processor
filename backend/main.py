@@ -123,6 +123,8 @@ app.add_middleware(
 
 async def _run_script(script_path: Path, cwd: Path) -> None:
     """Run a Python script in a thread executor (works on Windows + Linux)."""
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"  # prevent Unicode errors on Windows cp1252
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
@@ -131,6 +133,8 @@ async def _run_script(script_path: Path, cwd: Path) -> None:
             cwd=str(cwd),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            env=env,
         ),
     )
     if result.returncode != 0:
