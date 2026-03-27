@@ -534,7 +534,20 @@ def create_output_workbook(ws_formula, ws_value, new_batch_size):
     
     # STEP 6: HIDE THE CONTROL COLUMN
     ws_new.column_dimensions[control_col_letter].hidden = True
-    
+
+    # STEP 7: AUTO-SIZE all visible columns so no text is cut off
+    for col_cells in ws_new.columns:
+        col_letter = col_cells[0].column_letter
+        if ws_new.column_dimensions[col_letter].hidden:
+            continue
+        max_len = 0
+        for cell in col_cells:
+            if cell.value is not None:
+                max_len = max(max_len, len(str(cell.value)))
+        # Keep existing width if already wide enough, otherwise expand
+        current = ws_new.column_dimensions[col_letter].width or 0
+        ws_new.column_dimensions[col_letter].width = max(current, min(max_len + 2, 40))
+
     return wb_new, structure
 
 
