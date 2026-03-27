@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase-client';
 
@@ -8,12 +8,14 @@ type Step = 'email' | 'otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep]         = useState<Step>('email');
-  const [email, setEmail]       = useState('');
-  const [otp, setOtp]           = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [info, setInfo]         = useState<string | null>(null);
+  const [step, setStep]       = useState<Step>('email');
+  const [email, setEmail]     = useState('');
+  const [otp, setOtp]         = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [info, setInfo]       = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -22,23 +24,60 @@ export default function LoginPage() {
     });
   }, [router]);
 
+  // Clear timer on unmount
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  function startCooldown() {
+    setCooldown(60);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) { clearInterval(timerRef.current!); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  async function doSendOtp(emailAddr: string) {
+    const { error: err } = await getSupabaseClient().auth.signInWithOtp({
+      email: emailAddr,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    if (err) throw err;
+  }
+
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const { error: err } = await getSupabaseClient().auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (err) throw err;
+      await doSendOtp(email.trim().toLowerCase());
       setStep('otp');
       setInfo(`A 6-digit code has been sent to ${email}. Check your inbox.`);
+      startCooldown();
     } catch (e: unknown) {
       setError((e as Error).message ?? 'Failed to send code.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendOtp() {
+    setError(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      await doSendOtp(email.trim().toLowerCase());
+      setInfo(`A new code has been sent to ${email}.`);
+      setOtp('');
+      startCooldown();
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Failed to resend code.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +118,15 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function backToEmail() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setCooldown(0);
+    setStep('email');
+    setOtp('');
+    setError(null);
+    setInfo(null);
   }
 
   return (
@@ -164,6 +212,7 @@ export default function LoginPage() {
                              focus:ring-2 focus:ring-blue-400"
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
@@ -172,10 +221,22 @@ export default function LoginPage() {
               >
                 {loading ? 'Verifying…' : 'Verify Code'}
               </button>
+
+              {/* Resend */}
               <button
                 type="button"
-                onClick={() => { setStep('email'); setOtp(''); setError(null); setInfo(null); }}
-                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                onClick={resendOtp}
+                disabled={cooldown > 0 || loading}
+                className="w-full py-2 text-sm text-blue-600 hover:text-blue-700
+                           disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+              </button>
+
+              <button
+                type="button"
+                onClick={backToEmail}
+                className="w-full text-sm text-gray-400 hover:text-gray-600 transition-colors"
               >
                 ← Use a different email
               </button>
