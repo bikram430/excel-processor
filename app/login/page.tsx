@@ -29,7 +29,10 @@ export default function LoginPage() {
     try {
       const { error: err } = await getSupabaseClient().auth.signInWithOtp({
         email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: window.location.origin,
+        },
       });
       if (err) throw err;
       setStep('otp');
