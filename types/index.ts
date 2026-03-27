@@ -42,6 +42,7 @@ export interface ProcessedData {
   filteredData: ExcelRow[];
   totalsByLine: Record<string, LineStats>;
   overallTotal: number;
+  productionDate?: string;  // ISO date "YYYY-MM-DD" extracted from Excel metadata rows
 }
 
 /** Shape of the JSON the /api/upload route returns */

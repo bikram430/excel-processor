@@ -55,7 +55,7 @@ function findHeaderRowIndex(raw: unknown[][]): number {
 
 export function parseExcel(buffer: Buffer): ProcessedData {
   // ── 1. Read workbook ───────────────────────────────────────────────────────
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
 
   if (!workbook.SheetNames.length) {
     throw new Error('The Excel file contains no sheets.');
@@ -75,6 +75,28 @@ export function parseExcel(buffer: Buffer): ProcessedData {
       'Could not find a header row containing "Line" and "Product". ' +
       'Please ensure the Excel file has not been restructured.'
     );
+  }
+
+  // ── 2b. Extract production date from metadata rows above the header ─────────
+  let productionDate: string | undefined;
+  outer: for (let i = 0; i < headerRowIdx; i++) {
+    const metaRow = raw[i] as unknown[];
+    if (!metaRow?.length) continue;
+    for (const cell of metaRow) {
+      // XLSX with cellDates:true returns Date objects for date cells
+      if (cell instanceof Date && !isNaN(cell.getTime()) && cell.getFullYear() > 2000) {
+        productionDate = cell.toISOString().slice(0, 10);
+        break outer;
+      }
+      // Fallback: try to parse date-like strings (e.g. "01/03/2024", "2024-03-01")
+      if (typeof cell === 'string' && cell.trim().length >= 6) {
+        const d = new Date(cell.trim());
+        if (!isNaN(d.getTime()) && d.getFullYear() > 2000 && d.getFullYear() < 2100) {
+          productionDate = d.toISOString().slice(0, 10);
+          break outer;
+        }
+      }
+    }
   }
 
   // ── 3. Build a dense, trimmed headers array ────────────────────────────────
@@ -155,5 +177,5 @@ export function parseExcel(buffer: Buffer): ProcessedData {
     overallTotal += row.quantity;
   }
 
-  return { filteredData, totalsByLine, overallTotal };
+  return { filteredData, totalsByLine, overallTotal, productionDate };
 }
