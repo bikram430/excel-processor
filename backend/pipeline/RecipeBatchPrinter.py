@@ -475,47 +475,61 @@ def create_output_workbook(ws_formula, ws_value, new_batch_size):
         print(f"  Warning: Could not find batch size cell")
         batch_size_ref = None
     
-    # Get cell references for formulas
+    # Pre-compute values needed for steps 4 & 5
+    finished_yield = None
     if structure["finished_yield_row"]:
-        finished_yield_ref = f"${control_col_letter}${structure['finished_yield_row']}"
-    else:
-        finished_yield_ref = None
-    
-    if structure["total_in_row"]:
-        total_in_ref = f"${control_col_letter}${structure['total_in_row']}"
-    else:
-        total_in_ref = None
-    
-    # STEP 4: Write FORMULAS for ingredient rows
-    if structure["ingredient_start"] and structure["ingredient_end"] and total_in_ref:
+        fy_val = ws_value.cell(structure["finished_yield_row"], structure["control_col"]).value
+        try:
+            finished_yield = float(fy_val) if fy_val is not None else None
+        except (ValueError, TypeError):
+            pass
+
+    ingredient_control: dict = {}
+    if structure["ingredient_start"] and structure["ingredient_end"]:
         for r in range(structure["ingredient_start"], structure["ingredient_end"] + 1):
-            # % formula
-            percent_formula = f"={control_col_letter}{r}/{total_in_ref}"
-            ws_new.cell(r, structure["percent_col"]).value = percent_formula
-            
-            # New Batch formula
-            if batch_size_ref and finished_yield_ref:
-                new_batch_formula = f"={control_col_letter}{r}*({batch_size_ref}/{finished_yield_ref})"
-                ws_new.cell(r, structure["new_batch_col"]).value = new_batch_formula
-    
-    # STEP 5: Write FORMULAS for summary rows
-    if structure["total_in_row"] and total_in_ref:
-        sum_range = f"{control_col_letter}{structure['ingredient_start']}:{control_col_letter}{structure['ingredient_end']}"
-        ws_new.cell(structure["total_in_row"], structure["control_col"]).value = f"=SUM({sum_range})"
-        ws_new.cell(structure["total_in_row"], structure["percent_col"]).value = f"={control_col_letter}{structure['total_in_row']}/{total_in_ref}"
-        
-        new_batch_sum = f"{new_batch_col_letter}{structure['ingredient_start']}:{new_batch_col_letter}{structure['ingredient_end']}"
-        ws_new.cell(structure["total_in_row"], structure["new_batch_col"]).value = f"=SUM({new_batch_sum})"
-    
-    if structure["finished_yield_row"] and total_in_ref:
-        ws_new.cell(structure["finished_yield_row"], structure["percent_col"]).value = f"={control_col_letter}{structure['finished_yield_row']}/{total_in_ref}"
-        if batch_size_ref:
-            ws_new.cell(structure["finished_yield_row"], structure["new_batch_col"]).value = f"={batch_size_ref}"
-    
-    if structure["yield_loss_row"] and structure["total_in_row"] and structure["finished_yield_row"]:
-        ws_new.cell(structure["yield_loss_row"], structure["control_col"]).value = f"={control_col_letter}{structure['total_in_row']}-{control_col_letter}{structure['finished_yield_row']}"
-        if total_in_ref:
-            ws_new.cell(structure["yield_loss_row"], structure["percent_col"]).value = f"={control_col_letter}{structure['yield_loss_row']}/{total_in_ref}"
+            cv = ws_value.cell(r, structure["control_col"]).value
+            try:
+                ingredient_control[r] = float(cv) if cv is not None else 0.0
+            except (ValueError, TypeError):
+                ingredient_control[r] = 0.0
+
+    total_in = sum(ingredient_control.values())
+
+    # STEP 4: Write CALCULATED VALUES for ingredient rows
+    for r, cv in ingredient_control.items():
+        if total_in > 0:
+            ws_new.cell(r, structure["percent_col"]).value = round(cv / total_in, 6)
+        if finished_yield and finished_yield > 0:
+            ws_new.cell(r, structure["new_batch_col"]).value = round(cv * (new_batch_size / finished_yield), 3)
+
+    # STEP 5: Write CALCULATED VALUES for summary rows
+    if structure["total_in_row"]:
+        ws_new.cell(structure["total_in_row"], structure["control_col"]).value = round(total_in, 3)
+        ws_new.cell(structure["total_in_row"], structure["percent_col"]).value = 1.0 if total_in > 0 else 0
+        if finished_yield and finished_yield > 0:
+            ws_new.cell(structure["total_in_row"], structure["new_batch_col"]).value = round(
+                total_in * (new_batch_size / finished_yield), 3
+            )
+
+    if structure["finished_yield_row"]:
+        fy_control = ws_value.cell(structure["finished_yield_row"], structure["control_col"]).value
+        try:
+            fy_c = float(fy_control) if fy_control is not None else 0.0
+        except (ValueError, TypeError):
+            fy_c = 0.0
+        if total_in > 0:
+            ws_new.cell(structure["finished_yield_row"], structure["percent_col"]).value = round(fy_c / total_in, 6)
+        ws_new.cell(structure["finished_yield_row"], structure["new_batch_col"]).value = new_batch_size
+
+    if structure["yield_loss_row"]:
+        yl_control = ws_value.cell(structure["yield_loss_row"], structure["control_col"]).value
+        try:
+            yl_c = float(yl_control) if yl_control is not None else 0.0
+        except (ValueError, TypeError):
+            yl_c = 0.0
+        ws_new.cell(structure["yield_loss_row"], structure["control_col"]).value = round(yl_c, 3)
+        if total_in > 0:
+            ws_new.cell(structure["yield_loss_row"], structure["percent_col"]).value = round(yl_c / total_in, 6)
         ws_new.cell(structure["yield_loss_row"], structure["new_batch_col"]).value = ""
     
     # STEP 6: HIDE THE CONTROL COLUMN
