@@ -27,7 +27,7 @@ from typing import Optional
 import httpx
 import openpyxl
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -39,6 +39,7 @@ load_dotenv()  # reads backend/.env
 
 SUPABASE_URL: str        = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str = os.environ["SUPABASE_SERVICE_KEY"]
+WEBHOOK_SECRET: str       = os.environ.get("WEBHOOK_SECRET", "")
 # On Railway: set RECIPE_AUTOMATION_DIR env var, e.g. /app/pipeline
 # Locally: defaults to the pipeline/ subfolder next to this file
 RECIPE_AUTOMATION_DIR = Path(
@@ -519,6 +520,58 @@ async def upload_and_run(
     ).execute()
     background_tasks.add_task(run_pipeline, run_id, str(dest))
     return RunStatus(run_id=run_id, status="queued")
+
+
+# ─── Keywords that identify Line 7-8 files (case-insensitive substring match) ─
+_LINE78_KEYWORDS = ["line 7", "line7", "7-8", "7_8", "l7_", "l78", "line78"]
+
+
+@app.post("/api/webhook/email", status_code=202)
+async def email_webhook(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    notes: Optional[str] = Form(None),
+    x_webhook_secret: Optional[str] = Header(None),
+) -> dict:
+    """
+    Called by Make.com (or similar) for each xlsx attachment from the
+    production email.  Non-xlsx files and Line 7-8 sheets are skipped
+    so only the main production plan triggers a pipeline run.
+
+    Make.com HTTP module setup:
+      URL    : POST https://<your-backend>/api/webhook/email
+      Headers: x-webhook-secret: <WEBHOOK_SECRET>
+      Body   : multipart/form-data
+                 file  = {{attachment binary}}
+                 notes = {{email subject}} – {{date}}
+    """
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    if WEBHOOK_SECRET and x_webhook_secret != WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+    filename = file.filename or ""
+
+    # ── Skip non-xlsx files (PDFs, images, Word docs, etc.) ───────────────────
+    if not filename.lower().endswith(".xlsx"):
+        return {"skipped": True, "reason": "not an xlsx file", "filename": filename}
+
+    # ── Skip Line 7-8 sheets — user uploads these manually in the board ───────
+    name_lower = filename.lower()
+    if any(kw in name_lower for kw in _LINE78_KEYWORDS):
+        return {"skipped": True, "reason": "line 7-8 file — upload via the board", "filename": filename}
+
+    # ── Treat as production plan — same logic as /api/runs/upload ─────────────
+    dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
+    dest.write_bytes(await file.read())
+
+    run_id = str(uuid.uuid4())
+    run_notes = notes or f"Auto-uploaded from email: {filename}"
+    supabase.table("runs").insert(
+        {"id": run_id, "status": "queued", "notes": run_notes}
+    ).execute()
+    background_tasks.add_task(run_pipeline, run_id, str(dest))
+
+    return {"queued": True, "run_id": run_id, "filename": filename}
 
 
 @app.get("/api/runs")

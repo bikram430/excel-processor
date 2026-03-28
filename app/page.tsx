@@ -6,6 +6,7 @@ import { FileUpload }       from '@/components/FileUpload';
 import { Summary }          from '@/components/Summary';
 import { ProductionBoard }  from '@/components/ProductionBoard';
 import { RecipesSection }   from '@/components/RecipesSection';
+import { EmailRunBanner }   from '@/components/EmailRunBanner';
 import { useAuth }          from '@/components/AuthProvider';
 import { Chart }            from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
@@ -39,6 +40,7 @@ export default function HomePage() {
   const [warning, setWarning]               = useState<string | null>(null);
   const [showAnalytics, setShowAnalytics]   = useState(false);
   const [recipeRunId, setRecipeRunId]       = useState<string | null>(null);
+  const [emailRunId,  setEmailRunId]        = useState<string | null>(null);
   const [productionDate, setProductionDate] = useState<string | undefined>(undefined);
 
   // Redirect to login if not authenticated
@@ -320,6 +322,11 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* ── Email automation banner — shows when a new run arrives automatically ── */}
+          <EmailRunBanner
+            onView={(id) => { setEmailRunId(id); setSection('recipes'); }}
+          />
+
           {/* ── Dashboard section ─────────────────────────────────────────────── */}
           {section === 'dashboard' && (
             <div className="space-y-6 animate-results">
@@ -546,7 +553,7 @@ export default function HomePage() {
           {section === 'recipes' && (
             <RecipesSection
               currentBatches={currentBatches.length > 0 ? currentBatches : undefined}
-              pendingRunId={recipeRunId}
+              pendingRunId={emailRunId ?? recipeRunId}
             />
           )}
 
