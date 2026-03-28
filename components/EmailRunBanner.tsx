@@ -7,6 +7,7 @@ export type { RunSummary };
 interface Props {
   onView: (run: RunSummary) => void;
   onStartProcessing?: (run: RunSummary) => void;
+  activeBoardRunId?: string;
 }
 
 const MAX_AGE_MS = 4 * 60 * 60 * 1000;
@@ -17,7 +18,7 @@ function isEmailRun(run: RunSummary): boolean {
   return n.startsWith('[email]') || n.includes('auto-uploaded') || n.includes('fwd');
 }
 
-export function EmailRunBanner({ onView, onStartProcessing }: Props) {
+export function EmailRunBanner({ onView, onStartProcessing, activeBoardRunId }: Props) {
   const [run, setRun] = useState<RunSummary | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -118,12 +119,14 @@ export function EmailRunBanner({ onView, onStartProcessing }: Props) {
       )}
 
       {isReady && (
-        <button
-          onClick={() => onView(run)}
-          className="flex-shrink-0 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
-        >
-          Load Board →
-        </button>
+        activeBoardRunId === run.id
+          ? <span className="flex-shrink-0 text-xs font-semibold text-emerald-700">Board loaded ✓</span>
+          : <button
+              onClick={() => onView(run)}
+              className="flex-shrink-0 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              Load Board →
+            </button>
       )}
 
       <button onClick={dismiss} aria-label="Dismiss"

@@ -12,7 +12,7 @@ import { useAuth }            from '@/components/AuthProvider';
 import { Chart }              from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
-import { createRunFromBatches, fetchProductionInputBlob, RunSummary } from '@/lib/apiClient';
+import { createRunFromBatches, fetchProductionInputBlob, startRun, RunSummary } from '@/lib/apiClient';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -105,21 +105,23 @@ export default function HomePage() {
     return [...map.values()];
   }
 
-  function enrichAndStore(rows: ExcelRow[], bcCap: number, prodDate?: string) {
+  // skipRecipes=true when loading from email — the email pipeline already handles recipes
+  function enrichAndStore(rows: ExcelRow[], bcCap: number, prodDate?: string, skipRecipes = false) {
     const enriched = calculateBatches(deduplicateByItemCode(rows), bcCap);
     setEnrichedRows(enriched);
-    // Auto-trigger recipe generation in the background
-    const batches = enriched
-      .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
-      .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
-    if (batches.length > 0) {
-      createRunFromBatches(batches, prodDate)
-        .then(run => setRecipeRunId(run.run_id))
-        .catch(() => {}); // silent — user can still manually generate from Recipes tab
+    if (!skipRecipes) {
+      const batches = enriched
+        .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
+        .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
+      if (batches.length > 0) {
+        createRunFromBatches(batches, prodDate)
+          .then(run => setRecipeRunId(run.run_id))
+          .catch(() => {});
+      }
     }
   }
 
-  function handleData(response: ApiResponse) {
+  function handleData(response: ApiResponse, skipRecipes = false) {
     if (response.success && response.data) {
       const rawRows = response.data.filteredData;
       const prodDate = response.data.productionDate;
@@ -129,13 +131,12 @@ export default function HomePage() {
       setError(null);
 
       if (hasButterChicken(rawRows)) {
-        // Ask user to confirm Butter Chicken batch cap before enriching
         setPendingRows(rawRows);
         setBcBatchSize(1800);
         setBcInput('1800');
         setShowBCModal(true);
       } else {
-        enrichAndStore(rawRows, 1800, prodDate);
+        enrichAndStore(rawRows, 1800, prodDate, skipRecipes);
         setSection('production');
       }
     } else {
@@ -178,6 +179,11 @@ export default function HomePage() {
     try {
       setLoading(true);
       setError(null);
+      // If run is queued, kick off the recipe pipeline in the background
+      // simultaneously with loading the board (don't await — fire and forget)
+      if (run.status === 'queued') {
+        startRun(run.id).catch(() => {});
+      }
       const blob = await fetchProductionInputBlob(run.id);
       const file = new File([blob], 'production.xlsx', {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -187,7 +193,8 @@ export default function HomePage() {
       const res = await fetch('/api/upload', { method: 'POST', body: form });
       const response: ApiResponse = await res.json();
       setEmailRunId(run.id);
-      handleData(response);
+      // skipRecipes=true — the email pipeline handles recipe generation
+      handleData(response, true);
     } catch {
       setError('Could not load the production file. The email attachment may not be a valid production plan.');
     } finally {
@@ -373,6 +380,7 @@ export default function HomePage() {
           <EmailRunBanner
             onView={(run) => handleEmailStartProcessing(run)}
             onStartProcessing={(run) => handleEmailStartProcessing(run)}
+            activeBoardRunId={emailRunId ?? undefined}
           />
 
           {/* ── Dashboard section ─────────────────────────────────────────────── */}
