@@ -89,8 +89,10 @@ export function EmailRunBanner({ onView, onStartProcessing, activeBoardRunId }: 
     ? { bg: 'bg-blue-50',    border: 'border-blue-200',    dot: 'bg-blue-500',    title: 'text-blue-900',   sub: 'text-blue-600',    dismiss: 'text-blue-400 hover:text-blue-700' }
     : { bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500',     title: 'text-red-900',    sub: 'text-red-600',     dismiss: 'text-red-400 hover:text-red-700' };
 
-  // Strip [email] prefix from display
-  const displayNotes = (run.notes ?? '').replace(/^\[email\]\s*/i, '');
+  // Strip [email] prefix and [sha256:...] suffix from display
+  const displayNotes = (run.notes ?? '')
+    .replace(/^\[email\]\s*/i, '')
+    .replace(/\s*\[sha256:[a-f0-9]+\]/i, '');
 
   return (
     <div className={`mb-5 flex items-center gap-3 px-4 py-3 rounded-xl border ${colors.bg} ${colors.border}`}>

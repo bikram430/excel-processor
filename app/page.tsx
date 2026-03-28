@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileUpload }         from '@/components/FileUpload';
 import { Summary }            from '@/components/Summary';
@@ -13,7 +13,8 @@ import { Chart }              from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
 import { createRunFromBatches, fetchProductionInputBlob, startRun, RunSummary } from '@/lib/apiClient';
-import { saveRunSnapshot } from '@/lib/runHistory';
+import { saveRunSnapshot, findByHash } from '@/lib/runHistory';
+import { computeSHA256 } from '@/lib/fileHash';
 import { ProductionAnalytics } from '@/components/ProductionAnalytics';
 
 const VALID_LINES = [
@@ -45,6 +46,10 @@ export default function HomePage() {
   const [recipeRunId, setRecipeRunId]       = useState<string | null>(null);
   const [emailRunId,  setEmailRunId]        = useState<string | null>(null);
   const [productionDate, setProductionDate] = useState<string | undefined>(undefined);
+
+  // Deduplication: SHA-256 of the file being processed + existing recipe run ID if already seen
+  const pendingFileHash      = useRef<string | null>(null);
+  const pendingExistingRunId = useRef<string | null>(null);
 
   // Restore production data from sessionStorage on mount
   useEffect(() => {
@@ -112,7 +117,7 @@ export default function HomePage() {
     const enriched = calculateBatches(deduplicateByItemCode(rows), bcCap);
     setEnrichedRows(enriched);
 
-    // Save per-line analytics snapshot for historical trends
+    // Build line stats for the analytics snapshot
     const lineStats: Record<string, { products: number; totalQty: number; batches: number }> = {};
     enriched.forEach(row => {
       if (!row.line) return;
@@ -121,25 +126,45 @@ export default function HomePage() {
       lineStats[row.line].totalQty += row.quantity;
       lineStats[row.line].batches  += row.batchSizes?.length ?? (row.batches ?? 1);
     });
-    saveRunSnapshot({
+
+    const snapshotBase = {
       id: `${prodDate ?? 'unknown'}_${Date.now()}`,
       prodDate,
       savedAt: new Date().toISOString(),
+      fileHash: pendingFileHash.current ?? undefined,
       lines: lineStats,
       totalProducts: enriched.length,
       totalBatches:  enriched.reduce((s, r) => s + (r.batchSizes?.length ?? (r.batches ?? 1)), 0),
       totalQty:      enriched.reduce((s, r) => s + r.quantity, 0),
-    });
+    };
+
+    // Consume pending dedup refs
+    const existingRunId = pendingExistingRunId.current;
+    pendingFileHash.current      = null;
+    pendingExistingRunId.current = null;
 
     if (!skipRecipes) {
-      const batches = enriched
-        .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
-        .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
-      if (batches.length > 0) {
-        createRunFromBatches(batches, prodDate)
-          .then(run => setRecipeRunId(run.run_id))
-          .catch(() => {});
+      if (existingRunId) {
+        // Same file seen before — reuse existing recipe run, no new DB record
+        setRecipeRunId(existingRunId);
+        saveRunSnapshot({ ...snapshotBase, recipeRunId: existingRunId });
+      } else {
+        const batches = enriched
+          .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
+          .map(r => ({ item_code: r.itemCode, batch_sizes: r.batchSizes! }));
+        if (batches.length > 0) {
+          createRunFromBatches(batches, prodDate)
+            .then(run => {
+              setRecipeRunId(run.run_id);
+              saveRunSnapshot({ ...snapshotBase, recipeRunId: run.run_id });
+            })
+            .catch(() => saveRunSnapshot(snapshotBase));
+        } else {
+          saveRunSnapshot(snapshotBase);
+        }
       }
+    } else {
+      saveRunSnapshot(snapshotBase);
     }
   }
 
@@ -195,18 +220,45 @@ export default function HomePage() {
     sessionStorage.removeItem('ep_prod_state');
   }
 
-  // Called when an email run's "Start Processing" is clicked — fetch the saved
-  // production.xlsx from Supabase Storage and run it through the normal upload flow.
+  // Called by FileUpload with the SHA-256 of the selected file before upload begins
+  function handleFileHash(hash: string) {
+    pendingFileHash.current = hash;
+    const existing = findByHash(hash);
+    if (existing) {
+      pendingExistingRunId.current = existing.recipeRunId ?? null;
+      const when = new Date(existing.savedAt).toLocaleString('en-AU', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      });
+      setWarning(`This file was already processed on ${when}. Loading results — no new run will be created.`);
+    } else {
+      pendingExistingRunId.current = null;
+    }
+  }
+
+  // Called when an email run's "Start Processing" or "Load Board" is clicked
   async function handleEmailStartProcessing(run: RunSummary) {
     try {
       setLoading(true);
       setError(null);
-      // If run is queued, kick off the recipe pipeline in the background
-      // simultaneously with loading the board (don't await — fire and forget)
-      if (run.status === 'queued') {
+      const blob = await fetchProductionInputBlob(run.id);
+
+      // Deduplication: check if we've processed this exact file content before
+      const hash = await computeSHA256(blob);
+      const existing = findByHash(hash);
+      pendingFileHash.current      = hash;
+      pendingExistingRunId.current = existing?.recipeRunId ?? null;
+
+      if (existing) {
+        // Same file — skip starting pipeline again, just reload board
+        const when = new Date(existing.savedAt).toLocaleString('en-AU', {
+          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+        });
+        setWarning(`This plan was already processed on ${when} — loading board without creating a new run.`);
+      } else if (run.status === 'queued') {
+        // New file — kick off recipe pipeline simultaneously with board load
         startRun(run.id).catch(() => {});
       }
-      const blob = await fetchProductionInputBlob(run.id);
+
       const file = new File([blob], 'production.xlsx', {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
@@ -496,7 +548,7 @@ export default function HomePage() {
                     <p className="mt-4 text-sm text-slate-500 font-medium">Processing your Excel file…</p>
                   </div>
                 ) : (
-                  <FileUpload onData={handleData} onLoading={setLoading} onError={setError} />
+                  <FileUpload onData={handleData} onLoading={setLoading} onError={setError} onFileHash={handleFileHash} />
                 )}
 
                 {/* Valid lines reference */}

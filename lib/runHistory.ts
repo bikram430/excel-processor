@@ -8,8 +8,10 @@ export interface RunLineStats {
 /** Snapshot saved to localStorage each time a board is loaded */
 export interface RunSnapshot {
   id: string;
-  prodDate?: string;  // ISO date from the plan file
-  savedAt: string;    // ISO datetime when this was saved
+  prodDate?: string;    // ISO date from the plan file
+  savedAt: string;      // ISO datetime when this was saved
+  fileHash?: string;    // SHA-256 of the source xlsx — used for deduplication
+  recipeRunId?: string; // Supabase run_id for the recipe pipeline run
   lines: Record<string, RunLineStats>;
   totalProducts: number;
   totalBatches: number;
@@ -45,6 +47,11 @@ export function getRunHistory(): RunSnapshot[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as RunSnapshot[]) : [];
   } catch { return []; }
+}
+
+/** Return an existing snapshot whose file content matches this SHA-256 hash */
+export function findByHash(hash: string): RunSnapshot | null {
+  return getRunHistory().find(s => s.fileHash === hash) ?? null;
 }
 
 /** Compute per-line averages across all stored snapshots */

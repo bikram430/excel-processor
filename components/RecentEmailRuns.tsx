@@ -13,7 +13,9 @@ function isEmailRun(run: RunSummary): boolean {
 }
 
 function label(notes: string): string {
-  return notes.replace(/^\[email\]\s*/i, '');
+  return notes
+    .replace(/^\[email\]\s*/i, '')
+    .replace(/\s*\[sha256:[a-f0-9]+\]/i, '');
 }
 
 function formatDate(iso: string): string {

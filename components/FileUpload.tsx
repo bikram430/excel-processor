@@ -2,11 +2,14 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { ApiResponse } from '@/types';
+import { computeSHA256 } from '@/lib/fileHash';
 
 interface FileUploadProps {
   onData: (response: ApiResponse) => void;
   onLoading: (loading: boolean) => void;
   onError: (error: string | null) => void;
+  /** Called with the SHA-256 hash immediately before the file is uploaded */
+  onFileHash?: (hash: string) => void;
 }
 
 /** Returns true when the file looks like an Excel spreadsheet */
@@ -18,7 +21,7 @@ function isExcelFile(file: File): boolean {
   return validMime.has(file.type) || /\.(xlsx|xls)$/i.test(file.name);
 }
 
-export function FileUpload({ onData, onLoading, onError }: FileUploadProps) {
+export function FileUpload({ onData, onLoading, onError, onFileHash }: FileUploadProps) {
   const [isDragging, setIsDragging]     = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading]   = useState(false);
@@ -65,6 +68,12 @@ export function FileUpload({ onData, onLoading, onError }: FileUploadProps) {
     setIsUploading(true);
     onLoading(true);
     onError(null);
+
+    // Compute hash and notify parent before sending — allows duplicate detection
+    try {
+      const hash = await computeSHA256(selectedFile);
+      onFileHash?.(hash);
+    } catch { /* non-blocking — proceed even if hash fails */ }
 
     const form = new FormData();
     form.append('file', selectedFile);

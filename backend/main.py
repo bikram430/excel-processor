@@ -13,6 +13,7 @@ Required env vars:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import os
 import re
@@ -581,14 +582,34 @@ async def email_webhook(
     if any(kw in name_lower for kw in _SKIP_KEYWORDS):
         return {"skipped": True, "reason": "not a production plan file", "filename": filename}
 
-    # ── Save the file locally and persist to Supabase Storage ────────────────
+    # ── Read file bytes and compute SHA-256 for deduplication ────────────────
     file_bytes = await file.read()
+    file_hash  = hashlib.sha256(file_bytes).hexdigest()
+
+    # ── Check for an existing run with the same file content ─────────────────
+    try:
+        dup_check = (
+            supabase.table("runs")
+            .select("id, status, notes")
+            .ilike("notes", f"%[sha256:{file_hash}]%")
+            .limit(1)
+            .execute()
+        )
+        if dup_check.data:
+            existing = dup_check.data[0]
+            print(f"[webhook] Duplicate file detected (sha256:{file_hash[:12]}…) — returning existing run {existing['id']}")
+            return {"received": True, "run_id": existing["id"], "filename": filename, "duplicate": True}
+    except Exception as exc:
+        print(f"[webhook] WARNING: duplicate check failed: {exc}")
+
+    # ── Save the file locally and persist to Supabase Storage ────────────────
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
     dest.write_bytes(file_bytes)
 
-    run_id = str(uuid.uuid4())
+    run_id  = str(uuid.uuid4())
     subject = notes or filename
-    run_notes = f"[email] {subject}"
+    # Embed SHA-256 in notes so future duplicates are detected instantly
+    run_notes = f"[email] {subject} [sha256:{file_hash}]"
 
     # Upload to Supabase Storage so it survives server restarts/redeploys
     prod_storage_path = f"{run_id}/production_input.xlsx"
