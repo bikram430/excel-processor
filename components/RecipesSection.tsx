@@ -201,7 +201,11 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
                     >
                       <StatusDot status={run.status} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-gray-700 truncate">{run.id.slice(0, 16)}…</p>
+                        <p className="text-xs font-semibold text-gray-700">{formatRunDate(run.created_at)}</p>
+                        {run.notes
+                          ? <p className="text-[10px] text-slate-400 truncate">{run.notes}</p>
+                          : <p className="text-[10px] font-mono text-slate-300 truncate">{run.id.slice(0, 12)}…</p>
+                        }
                       </div>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         run.status === 'done'    ? 'bg-green-100 text-green-700' :
@@ -384,8 +388,11 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
                     >
                       <StatusDot status={run.status} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-gray-700 truncate">{run.id.slice(0, 16)}…</p>
-                        <p className="text-[10px] text-slate-400">{new Date(run.created_at).toLocaleDateString()}</p>
+                        <p className="text-xs font-semibold text-gray-700">{formatRunDate(run.created_at)}</p>
+                        {run.notes
+                          ? <p className="text-[10px] text-slate-400 truncate">{run.notes}</p>
+                          : <p className="text-[10px] font-mono text-slate-300 truncate">{run.id.slice(0, 12)}…</p>
+                        }
                       </div>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
                         run.status === 'done'    ? 'bg-green-100 text-green-700' :
@@ -416,6 +423,13 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
       )}
     </div>
   );
+}
+
+function formatRunDate(iso: string): string {
+  return new Date(iso).toLocaleString('en-NZ', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 }
 
 function StatusDot({ status }: { status: string }) {
