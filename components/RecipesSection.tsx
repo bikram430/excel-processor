@@ -22,27 +22,6 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
 
   const hasBatches = currentBatches && currentBatches.length > 0;
 
-  // ── If a run was started from the Production tab, begin polling it ────────
-  useEffect(() => {
-    if (pendingRunId && stage === 'idle') {
-      setRunId(pendingRunId);
-      setStage('polling');
-      setStatusMsg('Queued…');
-      startPolling(pendingRunId);
-    }
-  }, [pendingRunId, startPolling]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Load recent runs on mount ─────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingRuns(true);
-    listRuns(8)
-      .then((runs) => { if (!cancelled) setRecentRuns(runs); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingRuns(false); });
-    return () => { cancelled = true; };
-  }, []);
-
   // ── Poll run status while running ─────────────────────────────────────────
   const startPolling = useCallback((id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -67,6 +46,27 @@ export function RecipesSection({ currentBatches, pendingRunId }: RecipesSectionP
         }
       } catch { /* keep polling */ }
     }, 3000);
+  }, []);
+
+  // ── If a run was started from the Production tab, begin polling it ────────
+  useEffect(() => {
+    if (pendingRunId && stage === 'idle') {
+      setRunId(pendingRunId);
+      setStage('polling');
+      setStatusMsg('Queued…');
+      startPolling(pendingRunId);
+    }
+  }, [pendingRunId, startPolling]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Load recent runs on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingRuns(true);
+    listRuns(8)
+      .then((runs) => { if (!cancelled) setRecentRuns(runs); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingRuns(false); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
