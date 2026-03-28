@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useLayoutEffect, useEffect, useMemo } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect, useMemo, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -773,7 +773,7 @@ function SortableCard({
       ref={setNodeRef}
       data-row-pos={position}
       {...attributes}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }}
     >
       <ProductCard
         item={item}
@@ -955,6 +955,15 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const lastOverRef    = useRef<string | null>(null);
   const boardRef       = useRef<HTMLDivElement>(null);
   const line78Ref      = useRef<HTMLInputElement>(null);
+
+  // Modifier: subtract the board's horizontal scroll so DragOverlay tracks the cursor correctly
+  const boardScrollModifier = useCallback(
+    ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+      ...transform,
+      x: transform.x - (boardRef.current?.scrollLeft ?? 0),
+    }),
+    []
+  );
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync showMeat with localStorage (client-only)
@@ -1595,7 +1604,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       </div>
 
       {/* ── Floating ghost while dragging ── */}
-      <DragOverlay dropAnimation={DROP_ANIMATION}>
+      <DragOverlay modifiers={[boardScrollModifier]} dropAnimation={DROP_ANIMATION}>
         {activeItem && (
           <div className="rotate-2 shadow-2xl w-52 opacity-95 ring-2 ring-indigo-400 rounded-xl">
             <ProductCard item={activeItem} position={0} showMeat={false} />
