@@ -34,6 +34,9 @@ export function EmailRunBanner({ onView }: Props) {
         const dismissed = sessionStorage.getItem(DISMISSED_KEY);
         if (dismissed === latest.id) return;
 
+        // Never show error runs in the banner
+        if (latest.status === 'error') return;
+
         const fromEmail = isEmailRun(latest);
         if (fromEmail || latest.status === 'running') {
           if (!cancelled) setRun(latest);
