@@ -539,6 +539,9 @@ async def upload_and_run(
 # ─── Keywords that identify Line 7-8 files (case-insensitive substring match) ─
 _LINE78_KEYWORDS = ["line 7", "line7", "7-8", "7_8", "l7_", "l78", "line78"]
 
+# ─── Keywords that identify non-production files to skip ──────────────────────
+_SKIP_KEYWORDS = ["roster", "schedule", "rota", "timesheet", "payroll", "wk "]
+
 
 @app.post("/api/webhook/email", status_code=202)
 async def email_webhook(
@@ -573,6 +576,10 @@ async def email_webhook(
     name_lower = filename.lower()
     if any(kw in name_lower for kw in _LINE78_KEYWORDS):
         return {"skipped": True, "reason": "line 7-8 file — upload via the board", "filename": filename}
+
+    # ── Skip roster/schedule files — not production plans ─────────────────────
+    if any(kw in name_lower for kw in _SKIP_KEYWORDS):
+        return {"skipped": True, "reason": "not a production plan file", "filename": filename}
 
     # ── Save the file, create a 'queued' run — user must manually start ─────
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"

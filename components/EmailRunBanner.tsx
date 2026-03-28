@@ -24,23 +24,21 @@ export function EmailRunBanner({ onView }: Props) {
 
     async function check() {
       try {
-        const runs = await listRuns(1);
+        const runs = await listRuns(10);
         if (cancelled || runs.length === 0) return;
-        const latest = runs[0];
-
-        const age = Date.now() - new Date(latest.created_at).getTime();
-        if (age > MAX_AGE_MS) return;
 
         const dismissed = sessionStorage.getItem(DISMISSED_KEY);
-        if (dismissed === latest.id) return;
 
-        // Never show error runs in the banner
-        if (latest.status === 'error') return;
+        // Find the most recent email run that isn't dismissed or errored
+        const match = runs.find(r => {
+          if (r.status === 'error') return false;
+          if (r.id === dismissed) return false;
+          const age = Date.now() - new Date(r.created_at).getTime();
+          if (age > MAX_AGE_MS) return false;
+          return isEmailRun(r) || r.status === 'running';
+        });
 
-        const fromEmail = isEmailRun(latest);
-        if (fromEmail || latest.status === 'running') {
-          if (!cancelled) setRun(latest);
-        }
+        if (!cancelled) setRun(match ?? null);
       } catch { /* silent */ }
     }
 
