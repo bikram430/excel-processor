@@ -76,6 +76,38 @@ export async function createRunFromBatches(entries: BatchEntry[], notes?: string
   return res.json();
 }
 
+// ─── Recipe files + ingredients (service-role, bypasses RLS) ─────────────────
+
+export interface RecipeFileRow {
+  file_name:    string;
+  item_code:    string;
+  file_type:    'recipe' | 'marination';
+  batch_number: number;
+  batch_size_kg: number;
+}
+
+export interface IngredientRow {
+  file_name:       string;
+  mix:             string | null;
+  ingredient_code: string | null;
+  description:     string | null;
+  percentage:      number | null;
+  new_batch_qty:   number | null;
+}
+
+export async function getRecipeFiles(runId: string): Promise<RecipeFileRow[]> {
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}/recipe-files`);
+  if (!res.ok) throw new Error(`Failed to fetch recipe files: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getIngredients(runId: string, fileNames: string[]): Promise<IngredientRow[]> {
+  const param = fileNames.join(',');
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}/ingredients?file_names=${encodeURIComponent(param)}`);
+  if (!res.ok) throw new Error(`Failed to fetch ingredients: ${res.statusText}`);
+  return res.json();
+}
+
 // ─── Recipe ZIP download ───────────────────────────────────────────────────────
 
 /**

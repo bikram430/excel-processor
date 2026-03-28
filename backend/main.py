@@ -532,3 +532,33 @@ async def list_runs(limit: int = 10) -> list:
         .execute()
     )
     return result.data or []
+
+
+@app.get("/api/runs/{run_id}/recipe-files")
+async def get_recipe_files(run_id: str) -> list:
+    """Return all recipe_files rows for a run (service-role key bypasses RLS)."""
+    result = (
+        supabase.table("recipe_files")
+        .select("file_name, item_code, file_type, batch_number, batch_size_kg")
+        .eq("run_id", run_id)
+        .order("item_code")
+        .order("batch_number")
+        .execute()
+    )
+    return result.data or []
+
+
+@app.get("/api/runs/{run_id}/ingredients")
+async def get_ingredients(run_id: str, file_names: str = "") -> list:
+    """Return recipe_ingredients rows for a run, optionally filtered by file_names (comma-separated)."""
+    query = (
+        supabase.table("recipe_ingredients")
+        .select("file_name, mix, ingredient_code, description, percentage, new_batch_qty")
+        .eq("run_id", run_id)
+    )
+    if file_names:
+        names = [n.strip() for n in file_names.split(",") if n.strip()]
+        if names:
+            query = query.in_("file_name", names)
+    result = query.execute()
+    return result.data or []

@@ -1,31 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { downloadRecipesZip } from '@/lib/apiClient';
-import { getSupabaseClient } from '@/lib/supabase-client';
-
-function getSupabase() { return getSupabaseClient(); }
+import { downloadRecipesZip, getRecipeFiles, getIngredients, RecipeFileRow, IngredientRow } from '@/lib/apiClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FileType = 'recipe' | 'marination';
-
-interface RecipeFile {
-  file_name:    string;
-  item_code:    string;
-  file_type:    FileType;
-  batch_number: number;
-  batch_size_kg: number;
-}
-
-interface Ingredient {
-  mix:              string | null;
-  ingredient_code:  string | null;
-  description:      string | null;
-  percentage:       number | null;
-  new_batch_qty:    number | null;
-}
-
+type RecipeFile = RecipeFileRow;
+type Ingredient = Omit<IngredientRow, 'file_name'>;
 type IngredientsByFile = Record<string, Ingredient[]>;
 type Filter = 'all' | FileType;
 
@@ -161,32 +143,24 @@ interface RecipeFilesTabProps {
 }
 
 export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
-  const [files, setFiles]                     = useState<RecipeFile[]>([]);
+  const [files, setFiles]                         = useState<RecipeFile[]>([]);
   const [ingredientsByFile, setIngredientsByFile] = useState<IngredientsByFile>({});
-  const [loadingFiles, setLoadingFiles]       = useState<Set<string>>(new Set());
-  const [loading, setLoading]                 = useState(true);
-  const [error, setError]                     = useState<string | null>(null);
-  const [filter, setFilter]                   = useState<Filter>('all');
-  const [downloading, setDownloading]         = useState(false);
+  const [loadingFiles, setLoadingFiles]           = useState<Set<string>>(new Set());
+  const [loading, setLoading]                     = useState(true);
+  const [error, setError]                         = useState<string | null>(null);
+  const [filter, setFilter]                       = useState<Filter>('all');
+  const [downloading, setDownloading]             = useState(false);
 
-  // ── Fetch file list on mount (lazy — only when tab is opened) ─────────────
+  // ── Fetch file list via backend API (service-role, bypasses RLS) ───────────
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
-
       try {
-        const { data, error: sbError } = await getSupabase()
-          .from('recipe_files')
-          .select('file_name, item_code, file_type, batch_number, batch_size_kg')
-          .eq('run_id', runId)
-          .order('item_code')
-          .order('batch_number');
-
-        if (sbError) throw sbError;
-        if (!cancelled) setFiles((data as RecipeFile[]) ?? []);
+        const data = await getRecipeFiles(runId);
+        if (!cancelled) setFiles(data);
       } catch (e: unknown) {
         if (!cancelled) setError((e as Error).message ?? 'Failed to load recipe files.');
       } finally {
@@ -209,24 +183,22 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
       return next;
     });
 
-    const { data } = await getSupabase()
-      .from('recipe_ingredients')
-      .select('file_name, mix, ingredient_code, description, percentage, new_batch_qty')
-      .eq('run_id', runId)
-      .in('file_name', needed);
-
-    const grouped: IngredientsByFile = {};
-    for (const fn of needed) grouped[fn] = [];
-    for (const row of data ?? []) {
-      grouped[row.file_name].push(row as Ingredient);
+    try {
+      const rows = await getIngredients(runId, needed);
+      const grouped: IngredientsByFile = {};
+      for (const fn of needed) grouped[fn] = [];
+      for (const row of rows) {
+        const { file_name, ...rest } = row;
+        (grouped[file_name] ??= []).push(rest);
+      }
+      setIngredientsByFile((prev) => ({ ...prev, ...grouped }));
+    } finally {
+      setLoadingFiles((prev) => {
+        const next = new Set(prev);
+        needed.forEach((fn) => next.delete(fn));
+        return next;
+      });
     }
-
-    setIngredientsByFile((prev) => ({ ...prev, ...grouped }));
-    setLoadingFiles((prev) => {
-      const next = new Set(prev);
-      needed.forEach((fn) => next.delete(fn));
-      return next;
-    });
   }
 
   // ── Filtered files ────────────────────────────────────────────────────────
@@ -332,7 +304,6 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
       {Object.entries(groups).map(([itemCode, groupFiles]) => (
         <div
           key={itemCode}
-          // Pre-load ingredients as soon as an accordion could be expanded
           onMouseEnter={() => ensureIngredients(groupFiles.map((f) => f.file_name))}
           onFocus={() => ensureIngredients(groupFiles.map((f) => f.file_name))}
         >
