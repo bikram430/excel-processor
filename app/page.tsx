@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileUpload }       from '@/components/FileUpload';
-import { Summary }          from '@/components/Summary';
-import { ProductionBoard }  from '@/components/ProductionBoard';
-import { RecipesSection }   from '@/components/RecipesSection';
-import { EmailRunBanner }   from '@/components/EmailRunBanner';
-import { useAuth }          from '@/components/AuthProvider';
-import { Chart }            from '@/components/Chart';
+import { FileUpload }         from '@/components/FileUpload';
+import { Summary }            from '@/components/Summary';
+import { ProductionBoard }    from '@/components/ProductionBoard';
+import { RecipesSection }     from '@/components/RecipesSection';
+import { EmailRunBanner }     from '@/components/EmailRunBanner';
+import { RecentEmailRuns }    from '@/components/RecentEmailRuns';
+import { useAuth }            from '@/components/AuthProvider';
+import { Chart }              from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
-import { createRunFromBatches }                 from '@/lib/apiClient';
+import { createRunFromBatches, fetchProductionFileBlob, RunSummary } from '@/lib/apiClient';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -42,6 +43,28 @@ export default function HomePage() {
   const [recipeRunId, setRecipeRunId]       = useState<string | null>(null);
   const [emailRunId,  setEmailRunId]        = useState<string | null>(null);
   const [productionDate, setProductionDate] = useState<string | undefined>(undefined);
+
+  // Restore production data from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('ep_prod_state');
+      if (saved) {
+        const { data: d, enrichedRows: er, productionDate: pd } = JSON.parse(saved);
+        if (d) { setData(d); setEnrichedRows(er ?? []); setProductionDate(pd); }
+      }
+    } catch { /* ignore corrupt storage */ }
+  }, []);
+
+  // Persist production data to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (data) {
+        sessionStorage.setItem('ep_prod_state', JSON.stringify({ data, enrichedRows, productionDate }));
+      } else {
+        sessionStorage.removeItem('ep_prod_state');
+      }
+    } catch { /* ignore quota errors */ }
+  }, [data, enrichedRows, productionDate]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -146,6 +169,30 @@ export default function HomePage() {
     setShowBCModal(false);
     setRecipeRunId(null);
     setProductionDate(undefined);
+    sessionStorage.removeItem('ep_prod_state');
+  }
+
+  // Called when an email run's "Start Processing" is clicked — fetch the saved
+  // production.xlsx from the backend and run it through the same upload flow.
+  async function handleEmailStartProcessing(run?: RunSummary) {
+    try {
+      setLoading(true);
+      setError(null);
+      const blob = await fetchProductionFileBlob();
+      const file = new File([blob], 'production.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const response: ApiResponse = await res.json();
+      handleData(response);
+      if (run) setEmailRunId(run.id);
+    } catch {
+      setError('Could not load the production file from the email. Please upload it manually.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Show spinner while checking auth
@@ -325,6 +372,7 @@ export default function HomePage() {
           {/* ── Email automation banner — shows when a new run arrives automatically ── */}
           <EmailRunBanner
             onView={(id) => { setEmailRunId(id); setSection('recipes'); }}
+            onStartProcessing={() => handleEmailStartProcessing()}
           />
 
           {/* ── Dashboard section ─────────────────────────────────────────────── */}
@@ -356,6 +404,12 @@ export default function HomePage() {
                   </svg>
                 </div>
               </div>
+
+              {/* Recent email runs history */}
+              <RecentEmailRuns
+                onStartProcessing={(run) => handleEmailStartProcessing(run)}
+                onViewFiles={(id) => { setEmailRunId(id); setSection('recipes'); }}
+              />
 
               {/* Stats + AI Analysis */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

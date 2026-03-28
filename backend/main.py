@@ -597,6 +597,20 @@ async def email_webhook(
     return {"received": True, "run_id": run_id, "filename": filename}
 
 
+@app.get("/api/production-file")
+async def get_production_file():
+    """Serve the most recently saved production.xlsx so the frontend can parse it."""
+    from fastapi.responses import FileResponse as _FileResponse
+    dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
+    if not dest.exists():
+        raise HTTPException(status_code=404, detail="No production file saved yet")
+    return _FileResponse(
+        dest,
+        filename="production.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.get("/api/runs")
 async def list_runs(limit: int = 10) -> list:
     """Return the most recent runs (newest first)."""

@@ -5,6 +5,7 @@ import { listRuns, startRun, RunSummary } from '@/lib/apiClient';
 
 interface Props {
   onView: (runId: string) => void;
+  onStartProcessing?: () => void;
 }
 
 const MAX_AGE_MS = 4 * 60 * 60 * 1000;
@@ -15,7 +16,7 @@ function isEmailRun(run: RunSummary): boolean {
   return n.startsWith('[email]') || n.includes('auto-uploaded') || n.includes('fwd');
 }
 
-export function EmailRunBanner({ onView }: Props) {
+export function EmailRunBanner({ onView, onStartProcessing }: Props) {
   const [run, setRun] = useState<RunSummary | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -60,6 +61,7 @@ export function EmailRunBanner({ onView }: Props) {
     try {
       await startRun(run.id);
       setRun({ ...run, status: 'running' });
+      onStartProcessing?.();
     } catch {
       // ignore — banner re-polls
     } finally {
