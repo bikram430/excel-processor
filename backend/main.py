@@ -359,6 +359,20 @@ async def create_run(body: RunRequest, background_tasks: BackgroundTasks) -> Run
     return RunStatus(run_id=run_id, status="queued")
 
 
+@app.post("/api/runs/{run_id}/start", response_model=RunStatus, status_code=202)
+async def start_run(run_id: str, background_tasks: BackgroundTasks) -> RunStatus:
+    """Manually start processing a run that is in 'received' status."""
+    result = supabase.table("runs").select("status").eq("id", run_id).maybe_single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if result.data["status"] not in ("received", "queued"):
+        raise HTTPException(status_code=400, detail=f"Run already {result.data['status']}")
+    supabase.table("runs").update({"status": "queued"}).eq("id", run_id).execute()
+    dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
+    background_tasks.add_task(run_pipeline, run_id, str(dest))
+    return RunStatus(run_id=run_id, status="queued")
+
+
 @app.get("/api/runs/{run_id}", response_model=RunStatus)
 async def get_run(run_id: str) -> RunStatus:
     """Poll the status of a run."""
@@ -560,18 +574,17 @@ async def email_webhook(
     if any(kw in name_lower for kw in _LINE78_KEYWORDS):
         return {"skipped": True, "reason": "line 7-8 file — upload via the board", "filename": filename}
 
-    # ── Treat as production plan — same logic as /api/runs/upload ─────────────
+    # ── Save the file, create a 'received' run — user must manually start ──────
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
     dest.write_bytes(await file.read())
 
     run_id = str(uuid.uuid4())
     run_notes = notes or f"Auto-uploaded from email: {filename}"
     supabase.table("runs").insert(
-        {"id": run_id, "status": "queued", "notes": run_notes}
+        {"id": run_id, "status": "received", "notes": run_notes}
     ).execute()
-    background_tasks.add_task(run_pipeline, run_id, str(dest))
 
-    return {"queued": True, "run_id": run_id, "filename": filename}
+    return {"received": True, "run_id": run_id, "filename": filename}
 
 
 @app.get("/api/runs")

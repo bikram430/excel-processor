@@ -9,13 +9,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export interface RunStatus {
   run_id: string;
-  status: 'queued' | 'running' | 'done' | 'error';
+  status: 'received' | 'queued' | 'running' | 'done' | 'error';
   message?: string;
 }
 
 export interface RunSummary {
   id: string;
-  status: 'queued' | 'running' | 'done' | 'error';
+  status: 'received' | 'queued' | 'running' | 'done' | 'error';
   notes?: string;
   created_at: string;
 }
@@ -49,6 +49,12 @@ export async function uploadAndRun(file: File, notes?: string): Promise<RunStatu
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`Upload failed: ${text}`);
   }
+  return res.json();
+}
+
+export async function startRun(runId: string): Promise<RunStatus> {
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}/start`, { method: 'POST' });
+  if (!res.ok) throw new Error(`startRun failed: ${res.statusText}`);
   return res.json();
 }
 
