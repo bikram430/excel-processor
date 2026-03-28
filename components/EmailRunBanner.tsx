@@ -12,7 +12,7 @@ const DISMISSED_KEY = 'ep_dismissed_run';
 
 function isEmailRun(run: RunSummary): boolean {
   const n = (run.notes ?? '').toLowerCase();
-  return n.includes('email') || n.includes('auto') || n.includes('fwd');
+  return n.startsWith('[email]') || n.includes('auto-uploaded') || n.includes('fwd');
 }
 
 export function EmailRunBanner({ onView }: Props) {

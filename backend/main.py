@@ -586,7 +586,9 @@ async def email_webhook(
     dest.write_bytes(await file.read())
 
     run_id = str(uuid.uuid4())
-    run_notes = notes or f"Auto-uploaded from email: {filename}"
+    # Always prefix with [email] so the frontend can identify email-received runs
+    subject = notes or filename
+    run_notes = f"[email] {subject}"
     supabase.table("runs").insert(
         {"id": run_id, "status": "queued", "notes": run_notes}
     ).execute()
