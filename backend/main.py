@@ -365,7 +365,7 @@ async def start_run(run_id: str, background_tasks: BackgroundTasks) -> RunStatus
     result = supabase.table("runs").select("status").eq("id", run_id).maybe_single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Run not found")
-    if result.data["status"] not in ("received", "queued"):
+    if result.data["status"] not in ("queued",):
         raise HTTPException(status_code=400, detail=f"Run already {result.data['status']}")
     supabase.table("runs").update({"status": "queued"}).eq("id", run_id).execute()
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
@@ -574,15 +574,16 @@ async def email_webhook(
     if any(kw in name_lower for kw in _LINE78_KEYWORDS):
         return {"skipped": True, "reason": "line 7-8 file — upload via the board", "filename": filename}
 
-    # ── Save the file, create a 'received' run — user must manually start ──────
+    # ── Save the file, create a 'queued' run — user must manually start ─────
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
     dest.write_bytes(await file.read())
 
     run_id = str(uuid.uuid4())
     run_notes = notes or f"Auto-uploaded from email: {filename}"
     supabase.table("runs").insert(
-        {"id": run_id, "status": "received", "notes": run_notes}
+        {"id": run_id, "status": "queued", "notes": run_notes}
     ).execute()
+    # Note: pipeline is NOT started here — user clicks "Start Processing" on the website
 
     return {"received": True, "run_id": run_id, "filename": filename}
 

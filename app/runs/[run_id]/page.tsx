@@ -14,7 +14,6 @@ type Tab = (typeof TABS)[number];
 
 function StatusPill({ status }: { status: RunStatus['status'] }) {
   const map: Record<RunStatus['status'], { label: string; cls: string }> = {
-    received: { label: 'Received', cls: 'bg-amber-100 text-amber-700' },
     queued:  { label: 'Queued',  cls: 'bg-gray-100 text-gray-600' },
     running: { label: 'Running', cls: 'bg-blue-100 text-blue-700 animate-pulse' },
     done:    { label: 'Done',    cls: 'bg-green-100 text-green-700' },

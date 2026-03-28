@@ -9,13 +9,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export interface RunStatus {
   run_id: string;
-  status: 'received' | 'queued' | 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'done' | 'error';
   message?: string;
 }
 
 export interface RunSummary {
   id: string;
-  status: 'received' | 'queued' | 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'done' | 'error';
   notes?: string;
   created_at: string;
 }
