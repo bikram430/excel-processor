@@ -209,7 +209,7 @@ export default function LoginPage() {
           <div className="border-b border-gray-100 pb-4">
             <h2 className="text-base font-bold text-gray-900">Industrial OS Login</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Enter your corporate credentials to access the production line analyzer.
+              Enter your Login credentials to access the production line analyzer.
             </p>
           </div>
 
@@ -325,14 +325,13 @@ export default function LoginPage() {
 
         {/* Sub text */}
         <p className="text-center text-[11px] text-slate-500 mb-6">
-          Contact the administrator if you do not have an active industrial account.
+          Contact the administrator if you do not have an active  account.
         </p>
 
         {/* Footer badges */}
         <div className="flex items-center justify-center gap-4">
-          <span className="text-[10px] text-slate-600 font-medium tracking-wide">© ISO 27001</span>
-          <span className="text-[10px] text-slate-600 font-medium tracking-wide">≡ FSMA COMPLIANT</span>
-          <span className="text-[10px] text-slate-600 font-medium tracking-wide">⊕ TLS 1.3 SECURE</span>
+          <span className="text-[10px] text-slate-600 font-medium tracking-wide">© BikramPandey</span>
+          <span className="text-[10px] text-slate-600 font-medium tracking-wide">⊕ 2026</span>
         </div>
 
       </div>
