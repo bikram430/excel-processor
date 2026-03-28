@@ -13,6 +13,8 @@ import { Chart }              from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
 import { createRunFromBatches, fetchProductionInputBlob, startRun, RunSummary } from '@/lib/apiClient';
+import { saveRunSnapshot } from '@/lib/runHistory';
+import { ProductionAnalytics } from '@/components/ProductionAnalytics';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -109,6 +111,26 @@ export default function HomePage() {
   function enrichAndStore(rows: ExcelRow[], bcCap: number, prodDate?: string, skipRecipes = false) {
     const enriched = calculateBatches(deduplicateByItemCode(rows), bcCap);
     setEnrichedRows(enriched);
+
+    // Save per-line analytics snapshot for historical trends
+    const lineStats: Record<string, { products: number; totalQty: number; batches: number }> = {};
+    enriched.forEach(row => {
+      if (!row.line) return;
+      if (!lineStats[row.line]) lineStats[row.line] = { products: 0, totalQty: 0, batches: 0 };
+      lineStats[row.line].products++;
+      lineStats[row.line].totalQty += row.quantity;
+      lineStats[row.line].batches  += row.batchSizes?.length ?? (row.batches ?? 1);
+    });
+    saveRunSnapshot({
+      id: `${prodDate ?? 'unknown'}_${Date.now()}`,
+      prodDate,
+      savedAt: new Date().toISOString(),
+      lines: lineStats,
+      totalProducts: enriched.length,
+      totalBatches:  enriched.reduce((s, r) => s + (r.batchSizes?.length ?? (r.batches ?? 1)), 0),
+      totalQty:      enriched.reduce((s, r) => s + r.quantity, 0),
+    });
+
     if (!skipRecipes) {
       const batches = enriched
         .filter(r => r.batchSizes && r.batchSizes.length > 0 && r.itemCode)
@@ -421,41 +443,11 @@ export default function HomePage() {
 
               {/* Stats + AI Analysis */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Production Summary card */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                  <p className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-4">
-                    Production Summary
-                  </p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-gray-900">
-                      {data ? currentBatches.length : '—'}
-                    </span>
-                    <span className="text-sm text-slate-500">
-                      {data ? 'products ready' : 'no data'}
-                    </span>
-                  </div>
-                  {data && (
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                      {data.filteredData.length} rows &bull; {Object.keys(data.totalsByLine).length} lines
-                    </p>
-                  )}
-                  <div className="mt-5 pt-4 border-t border-gray-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
-                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      </div>
-                      <p className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">AI Predictive Analysis</p>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      {data
-                        ? `${data.filteredData.length} products analyzed across ${Object.keys(data.totalsByLine).length} production lines. Total output: ${data.overallTotal.toLocaleString()} units.`
-                        : 'Upload production data to generate AI analysis and forecasting.'}
-                    </p>
-                  </div>
-                </div>
+                {/* Historical line analytics */}
+                <ProductionAnalytics
+                  enrichedRows={enrichedRows}
+                  productionDate={productionDate}
+                />
 
                 {/* Throughput by Line card */}
                 <div className="bg-white rounded-2xl border border-gray-200 p-5">
