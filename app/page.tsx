@@ -186,8 +186,8 @@ export default function HomePage() {
       form.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: form });
       const response: ApiResponse = await res.json();
-      handleData(response);
       setEmailRunId(run.id);
+      handleData(response);
     } catch {
       setError('Could not load the production file. The email attachment may not be a valid production plan.');
     } finally {
@@ -371,7 +371,7 @@ export default function HomePage() {
 
           {/* ── Email automation banner — shows when a new run arrives automatically ── */}
           <EmailRunBanner
-            onView={(id) => { setEmailRunId(id); setSection('recipes'); }}
+            onView={(run) => handleEmailStartProcessing(run)}
             onStartProcessing={(run) => handleEmailStartProcessing(run)}
           />
 
@@ -408,7 +408,7 @@ export default function HomePage() {
               {/* Recent email runs history */}
               <RecentEmailRuns
                 onStartProcessing={(run) => handleEmailStartProcessing(run)}
-                onViewFiles={(id) => { setEmailRunId(id); setSection('recipes'); }}
+                onViewBoard={(run) => handleEmailStartProcessing(run)}
               />
 
               {/* Stats + AI Analysis */}
