@@ -1,20 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { downloadRecipesZip } from '@/lib/apiClient';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
-// ─── Supabase anon client — lazy so build doesn't fail without env vars ──────
-let _sb: SupabaseClient | null = null;
-function getSupabase(): SupabaseClient {
-  if (!_sb) {
-    _sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-  }
-  return _sb;
-}
+function getSupabase() { return getSupabaseClient(); }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
