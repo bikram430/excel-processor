@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { listRuns, startRun, RunSummary } from '@/lib/apiClient';
+export type { RunSummary };
 
 interface Props {
   onView: (runId: string) => void;
-  onStartProcessing?: () => void;
+  onStartProcessing?: (run: RunSummary) => void;
 }
 
 const MAX_AGE_MS = 4 * 60 * 60 * 1000;
@@ -61,7 +62,7 @@ export function EmailRunBanner({ onView, onStartProcessing }: Props) {
     try {
       await startRun(run.id);
       setRun({ ...run, status: 'running' });
-      onStartProcessing?.();
+      onStartProcessing?.(run);
     } catch {
       // ignore — banner re-polls
     } finally {

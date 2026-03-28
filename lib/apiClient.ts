@@ -52,9 +52,9 @@ export async function uploadAndRun(file: File, notes?: string): Promise<RunStatu
   return res.json();
 }
 
-export async function fetchProductionFileBlob(): Promise<Blob> {
-  const res = await fetch(`${BASE_URL}/api/production-file`);
-  if (!res.ok) throw new Error('No production file available on server');
+export async function fetchProductionInputBlob(runId: string): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}/production-input`);
+  if (!res.ok) throw new Error('Production input file not found for this run');
   return res.blob();
 }
 

@@ -581,14 +581,27 @@ async def email_webhook(
     if any(kw in name_lower for kw in _SKIP_KEYWORDS):
         return {"skipped": True, "reason": "not a production plan file", "filename": filename}
 
-    # ── Save the file, create a 'queued' run — user must manually start ─────
+    # ── Save the file locally and persist to Supabase Storage ────────────────
+    file_bytes = await file.read()
     dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
-    dest.write_bytes(await file.read())
+    dest.write_bytes(file_bytes)
 
     run_id = str(uuid.uuid4())
-    # Always prefix with [email] so the frontend can identify email-received runs
     subject = notes or filename
     run_notes = f"[email] {subject}"
+
+    # Upload to Supabase Storage so it survives server restarts/redeploys
+    prod_storage_path = f"{run_id}/production_input.xlsx"
+    try:
+        supabase.storage.from_(STORAGE_BUCKET).upload(
+            prod_storage_path,
+            file_bytes,
+            {"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             "upsert": "true"},
+        )
+    except Exception as exc:
+        print(f"[webhook] WARNING: could not upload production input to storage: {exc}")
+
     supabase.table("runs").insert(
         {"id": run_id, "status": "queued", "notes": run_notes}
     ).execute()
@@ -597,17 +610,18 @@ async def email_webhook(
     return {"received": True, "run_id": run_id, "filename": filename}
 
 
-@app.get("/api/production-file")
-async def get_production_file():
-    """Serve the most recently saved production.xlsx so the frontend can parse it."""
-    from fastapi.responses import FileResponse as _FileResponse
-    dest = RECIPE_AUTOMATION_DIR / "production.xlsx"
-    if not dest.exists():
-        raise HTTPException(status_code=404, detail="No production file saved yet")
-    return _FileResponse(
-        dest,
-        filename="production.xlsx",
+@app.get("/api/runs/{run_id}/production-input")
+async def get_production_input(run_id: str) -> StreamingResponse:
+    """Return the original production xlsx uploaded for this email run."""
+    storage_path = f"{run_id}/production_input.xlsx"
+    try:
+        data = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Production input file not found for this run")
+    return StreamingResponse(
+        io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="production_{run_id[:8]}.xlsx"'},
     )
 
 

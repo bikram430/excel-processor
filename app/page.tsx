@@ -12,7 +12,7 @@ import { useAuth }            from '@/components/AuthProvider';
 import { Chart }              from '@/components/Chart';
 import { ApiResponse, ExcelRow, ProcessedData } from '@/types';
 import { calculateBatches, hasButterChicken }   from '@/lib/batchCalculator';
-import { createRunFromBatches, fetchProductionFileBlob, RunSummary } from '@/lib/apiClient';
+import { createRunFromBatches, fetchProductionInputBlob, RunSummary } from '@/lib/apiClient';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -173,12 +173,12 @@ export default function HomePage() {
   }
 
   // Called when an email run's "Start Processing" is clicked — fetch the saved
-  // production.xlsx from the backend and run it through the same upload flow.
-  async function handleEmailStartProcessing(run?: RunSummary) {
+  // production.xlsx from Supabase Storage and run it through the normal upload flow.
+  async function handleEmailStartProcessing(run: RunSummary) {
     try {
       setLoading(true);
       setError(null);
-      const blob = await fetchProductionFileBlob();
+      const blob = await fetchProductionInputBlob(run.id);
       const file = new File([blob], 'production.xlsx', {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
@@ -187,9 +187,9 @@ export default function HomePage() {
       const res = await fetch('/api/upload', { method: 'POST', body: form });
       const response: ApiResponse = await res.json();
       handleData(response);
-      if (run) setEmailRunId(run.id);
+      setEmailRunId(run.id);
     } catch {
-      setError('Could not load the production file from the email. Please upload it manually.');
+      setError('Could not load the production file. The email attachment may not be a valid production plan.');
     } finally {
       setLoading(false);
     }
@@ -372,7 +372,7 @@ export default function HomePage() {
           {/* ── Email automation banner — shows when a new run arrives automatically ── */}
           <EmailRunBanner
             onView={(id) => { setEmailRunId(id); setSection('recipes'); }}
-            onStartProcessing={() => handleEmailStartProcessing()}
+            onStartProcessing={(run) => handleEmailStartProcessing(run)}
           />
 
           {/* ── Dashboard section ─────────────────────────────────────────────── */}
