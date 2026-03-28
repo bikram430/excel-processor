@@ -646,6 +646,22 @@ async def get_production_input(run_id: str) -> StreamingResponse:
     )
 
 
+@app.get("/api/auth/check-approved")
+async def check_approved(email: str) -> dict:
+    """
+    Check whether an email is in the approved_emails table using the service-role
+    key, which bypasses RLS.  Called by the login page after OTP verification.
+    """
+    result = (
+        supabase.table("approved_emails")
+        .select("email")
+        .eq("email", email.strip().lower())
+        .maybeSingle()
+        .execute()
+    )
+    return {"approved": result.data is not None}
+
+
 @app.get("/api/runs")
 async def list_runs(limit: int = 10) -> list:
     """Return the most recent runs (newest first)."""

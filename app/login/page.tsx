@@ -97,14 +97,14 @@ export default function LoginPage() {
       if (err) throw err;
       if (!data.user) throw new Error('Verification failed.');
 
-      // Check if email is approved by admin
-      const { data: approved } = await sb
-        .from('approved_emails')
-        .select('email')
-        .eq('email', data.user.email)
-        .maybeSingle();
+      // Check approval via backend (service-role key bypasses RLS)
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+      const approvalRes = await fetch(
+        `${backendUrl}/api/auth/check-approved?email=${encodeURIComponent(data.user.email ?? '')}`
+      );
+      const approvalJson = approvalRes.ok ? await approvalRes.json() : { approved: false };
 
-      if (!approved) {
+      if (!approvalJson.approved) {
         await sb.auth.signOut();
         setError('Your account is pending admin approval. Contact Bikram to get access.');
         setStep('email');

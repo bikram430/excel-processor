@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useLayoutEffect, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +14,6 @@ import {
   DragOverEvent,
   DragEndEvent,
   useDroppable,
-  type Modifier,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -956,21 +955,6 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   const boardRef       = useRef<HTMLDivElement>(null);
   const line78Ref      = useRef<HTMLInputElement>(null);
 
-  // Modifier: centers the drag overlay on the cursor regardless of where in the card the user clicked
-  const snapCenterToCursor = useCallback<Modifier>(
-    ({ activatorEvent, activeNodeRect, transform }) => {
-      if (activeNodeRect && activatorEvent && 'clientX' in activatorEvent) {
-        const evt = activatorEvent as MouseEvent;
-        return {
-          ...transform,
-          x: transform.x + activeNodeRect.width  / 2 - (evt.clientX - activeNodeRect.left),
-          y: transform.y + activeNodeRect.height / 2 - (evt.clientY - activeNodeRect.top),
-        };
-      }
-      return transform;
-    },
-    []
-  );
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync showMeat with localStorage (client-only)
@@ -1612,7 +1596,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
       </div>
 
       {/* ── Floating ghost while dragging ── */}
-      <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={DROP_ANIMATION}>
+      <DragOverlay dropAnimation={DROP_ANIMATION}>
         {activeItem && (
           <div className="rotate-2 shadow-2xl w-52 opacity-95 ring-2 ring-indigo-400 rounded-xl">
             <ProductCard item={activeItem} position={0} showMeat={false} />
