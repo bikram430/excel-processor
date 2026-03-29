@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseExcel } from '@/lib/excelParser';
+import { verifyAuth } from '@/lib/auth-server';
 
 // MIME types accepted for Excel files
 const ALLOWED_MIME = new Set([
@@ -9,6 +10,15 @@ const ALLOWED_MIME = new Set([
 ]);
 
 export async function POST(request: NextRequest) {
+  // ── Require authenticated user ──────────────────────────────────────────
+  const userId = await verifyAuth(request);
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorised.' },
+      { status: 401 },
+    );
+  }
+
   try {
     // ── Parse multipart form data ─────────────────────────────────────────
     const formData = await request.formData();

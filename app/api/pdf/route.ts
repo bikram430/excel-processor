@@ -4,8 +4,15 @@ import React from 'react';
 import { BoardPdfDocument } from '@/lib/boardPdf';
 import type { BoardItem } from '@/types';
 import type { PdfMode, NonKettleItemForPdf } from '@/lib/boardPdf';
+import { verifyAuth } from '@/lib/auth-server';
 
 export async function POST(req: NextRequest) {
+  // ── Require authenticated user ──────────────────────────────────────────
+  const userId = await verifyAuth(req);
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  }
+
   try {
     const { lineMap, activeLines, mode, nonKettleItems } = (await req.json()) as {
       lineMap: Record<string, BoardItem[]>;

@@ -5,6 +5,7 @@
  */
 import type { BoardItem } from '@/types';
 import type { PdfMode, NonKettleItemForPdf } from '@/lib/boardPdf';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 export type { PdfMode, NonKettleItemForPdf };
 
@@ -15,9 +16,14 @@ export async function downloadBoardPDF(
   mode: PdfMode = 'full',
   nonKettleItems?: NonKettleItemForPdf[],
 ) {
+  const { data: sessionData } = await getSupabaseClient().auth.getSession();
+  const token = sessionData.session?.access_token ?? '';
   const response = await fetch('/api/pdf', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ lineMap, activeLines, mode, nonKettleItems }),
   });
 

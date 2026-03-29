@@ -97,10 +97,12 @@ export default function LoginPage() {
       if (err) throw err;
       if (!data.user) throw new Error('Verification failed.');
 
-      // Check approval via backend (service-role key bypasses RLS)
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+      // Check approval via our own API route (server-side, avoids CORS)
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData.session?.access_token ?? '';
       const approvalRes = await fetch(
-        `${backendUrl}/api/auth/check-approved?email=${encodeURIComponent(data.user.email ?? '')}`
+        `/api/auth/check-approved?email=${encodeURIComponent(data.user.email ?? '')}`,
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       const approvalJson = approvalRes.ok ? await approvalRes.json() : { approved: false };
 

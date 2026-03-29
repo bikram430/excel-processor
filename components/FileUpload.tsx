@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { ApiResponse } from '@/types';
 import { computeSHA256 } from '@/lib/fileHash';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 interface FileUploadProps {
   onData: (response: ApiResponse) => void;
@@ -79,7 +80,13 @@ export function FileUpload({ onData, onLoading, onError, onFileHash }: FileUploa
     form.append('file', selectedFile);
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const { data: sessionData } = await getSupabaseClient().auth.getSession();
+      const token = sessionData.session?.access_token ?? '';
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: form,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) {
         let msg = `Upload failed (${res.status}).`;
         try { const j = await res.json(); msg = (j as ApiResponse).error ?? msg; } catch { /* not JSON */ }

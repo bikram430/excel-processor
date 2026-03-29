@@ -16,6 +16,7 @@ import { createRunFromBatches, fetchProductionInputBlob, startRun, RunSummary } 
 import { saveRunSnapshot, findByHash } from '@/lib/runHistory';
 import { computeSHA256 } from '@/lib/fileHash';
 import { ProductionAnalytics } from '@/components/ProductionAnalytics';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 const VALID_LINES = [
   'BLENDTECH',
@@ -264,7 +265,13 @@ export default function HomePage() {
       });
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const { data: sessionData } = await getSupabaseClient().auth.getSession();
+      const token = sessionData.session?.access_token ?? '';
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: form,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const response: ApiResponse = await res.json();
       setEmailRunId(run.id);
       // skipRecipes=true — the email pipeline handles recipe generation
