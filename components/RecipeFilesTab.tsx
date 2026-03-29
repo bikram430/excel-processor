@@ -150,6 +150,7 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
   const [error, setError]                         = useState<string | null>(null);
   const [filter, setFilter]                       = useState<Filter>('all');
   const [downloading, setDownloading]             = useState(false);
+  const [printing,    setPrinting]                = useState(false);
 
   // ── Fetch file list via backend API (service-role, bypasses RLS) ───────────
   useEffect(() => {
@@ -209,6 +210,75 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
     (acc[f.item_code] ??= []).push(f);
     return acc;
   }, {});
+
+  // ── Print all visible recipes ─────────────────────────────────────────────
+  async function handlePrintAll() {
+    setPrinting(true);
+    try {
+      // Fetch any ingredients not yet loaded
+      const allNames = visible.map(f => f.file_name);
+      const needed   = allNames.filter(fn => !(fn in ingredientsByFile));
+      const byFile: IngredientsByFile = { ...ingredientsByFile };
+
+      if (needed.length > 0) {
+        const rows = await getIngredients(runId, needed);
+        for (const fn of needed) byFile[fn] = [];
+        for (const row of rows) {
+          const { file_name, ...rest } = row;
+          (byFile[file_name] ??= []).push(rest);
+        }
+      }
+
+      const sorted = [...visible].sort((a, b) =>
+        a.item_code.localeCompare(b.item_code) || a.batch_number - b.batch_number
+      );
+
+      const pages = sorted.map(file => {
+        const ings = byFile[file.file_name] ?? [];
+        const tbody = ings.length
+          ? ings.map(r => `<tr>
+              <td>${r.mix ?? ''}</td>
+              <td>${r.ingredient_code ?? ''}</td>
+              <td>${r.description ?? ''}</td>
+              <td style="text-align:right">${r.percentage != null ? r.percentage.toFixed(2) + '%' : ''}</td>
+              <td style="text-align:right">${r.new_batch_qty != null ? r.new_batch_qty.toLocaleString() : ''}</td>
+            </tr>`).join('')
+          : '<tr><td colspan="5" style="color:#999">No ingredient data</td></tr>';
+
+        return `<div class="page">
+          <h2>${file.item_code}</h2>
+          <p class="sub">${file.file_type === 'marination' ? 'MARINATION' : 'RECIPE'} &bull; Batch ${file.batch_number} &bull; ${file.batch_size_kg.toLocaleString()} kg</p>
+          <table><thead><tr><th>Mix</th><th>Code</th><th>Description</th><th>%</th><th>Batch Qty (kg)</th></tr></thead>
+          <tbody>${tbody}</tbody></table></div>`;
+      }).join('');
+
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Production Recipes</title>
+        <style>
+          body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}
+          .page{padding:20mm;page-break-after:always}
+          .page:last-child{page-break-after:auto}
+          h2{font-size:15px;margin:0 0 3px}
+          .sub{font-size:10px;color:#666;margin:0 0 10px}
+          table{width:100%;border-collapse:collapse}
+          th{background:#f3f4f6;padding:5px 7px;text-align:left;font-size:10px;text-transform:uppercase;border-bottom:2px solid #e5e7eb}
+          td{padding:4px 7px;border-bottom:1px solid #f3f4f6}
+          tr:nth-child(even) td{background:#f9fafb}
+          @media print{body{margin:0}.page{padding:15mm}}
+        </style></head><body>${pages}</body></html>`;
+
+      const win = window.open('', '_blank');
+      if (!win) { alert('Allow pop-ups to print recipes.'); return; }
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 400);
+    } catch {
+      alert('Failed to load recipe data for printing.');
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   // ── ZIP download ──────────────────────────────────────────────────────────
   async function handleDownloadAll() {
@@ -273,13 +343,42 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
           <span className="text-xs text-gray-400 ml-1">{visible.length} file{visible.length !== 1 ? 's' : ''}</span>
         </div>
 
-        <button
-          onClick={handleDownloadAll}
-          disabled={downloading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
-                     text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60
-                     transition-colors"
-        >
+        <div className="flex items-center gap-2">
+          {/* Print All */}
+          <button
+            onClick={handlePrintAll}
+            disabled={printing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
+                       text-slate-700 bg-white border border-gray-200 rounded-lg hover:border-slate-400
+                       disabled:opacity-60 transition-colors"
+          >
+            {printing ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Loading…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print All
+              </>
+            )}
+          </button>
+
+          {/* Download All */}
+          <button
+            onClick={handleDownloadAll}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
+                       text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60
+                       transition-colors"
+          >
           {downloading ? (
             <>
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -298,6 +397,7 @@ export function RecipeFilesTab({ runId }: RecipeFilesTabProps) {
             </>
           )}
         </button>
+      </div>
       </div>
 
       {/* Accordion groups */}

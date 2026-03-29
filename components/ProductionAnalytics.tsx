@@ -86,9 +86,9 @@ export function ProductionAnalytics({ enrichedRows, productionDate }: Props) {
                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <p className="text-xs font-semibold text-slate-400">No history yet</p>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Analytics will appear after your first production plan is loaded.
+          <p className="text-xs font-semibold text-slate-400">No history on this device</p>
+          <p className="text-[11px] text-slate-300 mt-1 max-w-[200px]">
+            Load a production plan to start building analytics. History is stored locally per browser.
           </p>
         </div>
       </div>
@@ -111,10 +111,11 @@ export function ProductionAnalytics({ enrichedRows, productionDate }: Props) {
       {/* Per-line rows */}
       <div className="space-y-3">
         {analytics.map(a => {
-          const cur = current[a.line];
-          const pct = Math.round((a.avgQty / maxAvgQty) * 100);
+          const cur    = current[a.line];
+          const pct    = Math.round((a.avgQty / maxAvgQty) * 100);
+          // Pre-compute so JSX stays clean (no IIFEs)
+          const curPct = cur ? Math.round((cur.totalQty / maxAvgQty) * 100) : 0;
 
-          // Compare current batches to historical average
           let badge: { label: string; color: string } | null = null;
           if (cur) {
             const diff = cur.batches - a.avgBatches;
@@ -123,9 +124,7 @@ export function ProductionAnalytics({ enrichedRows, productionDate }: Props) {
             else                badge = { label: 'On track', color: 'bg-slate-100 text-slate-500' };
           }
 
-          const trendIcon =
-            a.trend === 'up'   ? '↑' :
-            a.trend === 'down' ? '↓' : null;
+          const trendIcon = a.trend === 'up' ? '↑' : a.trend === 'down' ? '↓' : null;
 
           return (
             <div key={a.line}>
@@ -150,25 +149,22 @@ export function ProductionAnalytics({ enrichedRows, productionDate }: Props) {
                 </div>
               </div>
 
-              {/* Stacked bar: historical avg (blue) + current overage (red) if higher */}
+              {/* Stacked bar: historical avg (blue) + current overlay if different */}
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden relative">
-                {/* Historical average bar */}
                 <div
                   className="absolute inset-y-0 left-0 bg-blue-400 rounded-full transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
-                {/* Current run overlay — only shown if loaded and different */}
-                {cur && (() => {
-                  const curPct = Math.round((cur.totalQty / maxAvgQty) * 100);
-                  if (curPct > pct)
-                    return <div className="absolute inset-y-0 left-0 bg-red-400 rounded-full" style={{ width: `${Math.min(curPct, 100)}%`, opacity: 0.6 }} />;
-                  if (curPct < pct - 5)
-                    return <div className="absolute inset-y-0 left-0 bg-emerald-400 rounded-full" style={{ width: `${curPct}%`, opacity: 0.8 }} />;
-                  return null;
-                })()}
+                {cur && curPct > pct && (
+                  <div className="absolute inset-y-0 left-0 bg-red-400 rounded-full"
+                    style={{ width: `${Math.min(curPct, 100)}%`, opacity: 0.6 }} />
+                )}
+                {cur && curPct < pct - 5 && (
+                  <div className="absolute inset-y-0 left-0 bg-emerald-400 rounded-full"
+                    style={{ width: `${curPct}%`, opacity: 0.8 }} />
+                )}
               </div>
 
-              {/* Sub-line: current run detail */}
               {cur && (
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   Today: {cur.products} product{cur.products !== 1 ? 's' : ''} · {cur.batches} batch{cur.batches !== 1 ? 'es' : ''} · {fmt(cur.totalQty)}
