@@ -1050,7 +1050,7 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
         if (el.style.minHeight !== target) el.style.minHeight = target;
       });
     }
-  }, [allItems, activeId, showMeat]);
+  }, [allItems, activeId, showMeat, activeLines]);
 
   /*
    * SENSORS:
@@ -1306,12 +1306,13 @@ export function ProductionBoard({ data }: ProductionBoardProps) {
   }
 
   function handleLine78Confirm() {
+    const validTime = /^([01]?\d|2[0-3]):[0-5]\d$/;
     setAllItems(prev => {
       const next = { ...prev };
       for (const line of Object.keys(next)) {
         next[line] = sortByTime(next[line].map(item => {
           const match = line78Matches.find(m => m.itemId === item.id);
-          return match && match.time ? { ...item, time: match.time } : item;
+          return match && match.time && validTime.test(match.time) ? { ...item, time: match.time } : item;
         }));
       }
       return next;
