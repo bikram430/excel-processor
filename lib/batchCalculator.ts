@@ -30,6 +30,9 @@ const CQC_PRODUCTS: Record<string, CQCSpec> = {
   'WRVVMM10000':  { maxBatchSize: 50,  cyclesPerRecipe: 6 },
   'WWBGBC10000':  { maxBatchSize: 40,  cyclesPerRecipe: 6 },
   'WBGPDM10000':  { maxBatchSize: 39,  cyclesPerRecipe: 8 },
+  // WOK/Oven — recipe-sheet products (1 sheet = 24 batches/cycles)
+  'WSRCCP10000':  { maxBatchSize: 82,  cyclesPerRecipe: 24 }, // Spinach Ricotta Filling (1968 kg/sheet)
+  'WRSMPM10000':  { maxBatchSize: 34,  cyclesPerRecipe: 24 }, // Roasted Sliced Mushroom & Parsley Mix (814 kg/sheet)
 };
 
 const MEAT_SAUCE_EPP_CODE = 'WMTSCP10000';
@@ -41,19 +44,23 @@ const MIN_BATCH   = 1000; // No physical batch printed below this size
 
 // ── WOK / Oven / Misc per-product max batch sizes ──────────────────────────
 // Items not in this map use the default generalBatch cap.
+// Use 9999 for products with no practical batch-size limit (single batch regardless of qty).
 const WOK_BATCH_CAPS: Record<string, number> = {
   'WCFRCA10000':  180,  // Chinese Fried Rice
   'WDPSR10000':   170,  // Diced Potato Seasoned Roasted
-  'WEFRCI10000':  160,  // Egg Fried Rice
+  'WEFRCI10000':  170,  // Egg Fried Rice (updated from 160)
   'WRHALFCP1000': 180,  // Roasted Half Chat Potatoes
   'WSAPMIX1000':  100,  // Spinach and Peas Mix
-  'WSCEGPL1000':   70,  // Scrambled Eggs Plain
+  'WFRVGMX1000':  100,  // Stir Fry Veg Mix
+  'WSCEGPL1000':   86,  // Scrambled Eggs Plain (updated from 70)
   'WDIPCR10000':  150,  // Roasted Bombay Potatoes
-  'WRMCARO1000':  100,  // Roasted Mixed Capsicum and Red Onion
+  'WRMCARO1000':  120,  // Roasted Mixed Capsicum and Red Onion (updated from 100)
   'WCOMOC10000':   50,  // Couscous Medium Cooked
-  'WSPPAR10000':  120,  // Spinach Parsley Roast
-  'WSPDSOR1000':  160,  // Sweet Potato Diced 25mm Roasted
-  'WRCBCSC1000':  100,  // Red Capsicum Bowl Chopped Sous Vide Cooked
+  'WSPPAR10000':  110,  // Spinach Parsley Roast (updated from 120)
+  'WSPDSOR1000': 9999,  // Sweet Potato Diced 25mm Roasted — no max size
+  'WRCBCSC1000': 9999,  // Red Capsicum Bowl Chopped Sous Vide Cooked — no max size
+  'WCSPT10000':  9999,  // Cooked Sliced Potatoes — combine all, single batch
+  'WOCSPI10000': 9999,  // Wok Cooked Spinach — no max size
 };
 
 // ── Rice products — max 220 kg/batch, batch size rounded up to nearest 5 ──

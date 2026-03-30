@@ -26,16 +26,24 @@ export async function GET(req: NextRequest) {
 
   try {
     // Verify the caller's JWT and confirm email matches
-    const anonClient = createClient(url, anonKey);
+    const anonClient = createClient(url, anonKey, { auth: { persistSession: false } });
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
     if (authErr || !user || user.email?.toLowerCase() !== email) {
       return NextResponse.json({ approved: false }, { status: 401 });
     }
 
-    // Query approved_emails using service-role key (bypasses RLS)
-    const admin = createClient(url, serviceKey, {
-      auth: { persistSession: false },
-    });
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+    // Auto-approve users who were invited via Supabase invitation (invited_at is set).
+    // This lets admins invite users from the Supabase dashboard without manual approval.
+    if (user.invited_at) {
+      await admin
+        .from('approved_emails')
+        .upsert({ email }, { onConflict: 'email' });
+      return NextResponse.json({ approved: true });
+    }
+
+    // Query approved_emails for non-invited (self-registered) users
     const { data, error: dbErr } = await admin
       .from('approved_emails')
       .select('email')
