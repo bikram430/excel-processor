@@ -27,6 +27,26 @@ MASTER_RECIPES = {
         "file": os.path.join(SCRIPT_DIR, "Recipes", "SAUCE.xlsx"),
         "password": "NPD05",
     },
+    "VAPASTRY": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "PASTRY.xlsx"),
+        "password": "NPD11",
+    },
+    "MARINATION": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "MARINATION.xlsx"),
+        "password": "NPD10",
+    },
+    "WOK": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "WOK.xlsx"),
+        "password": "NPD12",
+    },
+    "RICE": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "RICE.xlsx"),
+        "password": "NPD09",
+    },
+    "CQC": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "CQC.xlsx"),
+        "password": "NPD01",
+    },
 }
 
 # Mature cheese WIP codes that need adjustment

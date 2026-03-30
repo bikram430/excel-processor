@@ -26,11 +26,14 @@ RECIPE_AUTOMATION_DIR = Path(
 BUCKET = "master-recipes"
 
 MASTER_FILES = [
-    "Recipes/KETTLEANDBLENDTECH.xlsx",
-    "Recipes/SOUP.xlsx",
-    "Recipes/SAUCE.xlsx",
-    "Recipes/PASTRY.xlsx",
-    "Recipes/MARINATION.xlsx",
+    "Recipes/KETTLEANDBLENDTECH.xlsx",   # password: NPD04
+    "Recipes/SOUP.xlsx",                  # password: NPD06
+    "Recipes/SAUCE.xlsx",                 # password: NPD05
+    "Recipes/PASTRY.xlsx",               # password: NPD11
+    "Recipes/MARINATION.xlsx",           # password: NPD10  (was NPD07 before 2026-02)
+    "Recipes/WOK.xlsx",                  # password: NPD12
+    "Recipes/RICE.xlsx",                 # password: NPD09
+    "Recipes/CQC.xlsx",                  # password: NPD01
 ]
 
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)

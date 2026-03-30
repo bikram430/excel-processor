@@ -37,7 +37,19 @@ MASTER_RECIPES: Dict[str, Dict[str, str]] = {
     },
     "MARINATION": {
         "file": os.path.join(SCRIPT_DIR, "Recipes", "MARINATION.xlsx"),
-        "password": "NPD07",
+        "password": "NPD10",
+    },
+    "WOK": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "WOK.xlsx"),
+        "password": "NPD12",
+    },
+    "RICE": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "RICE.xlsx"),
+        "password": "NPD09",
+    },
+    "CQC": {
+        "file": os.path.join(SCRIPT_DIR, "Recipes", "CQC.xlsx"),
+        "password": "NPD01",
     },
 }
 
